@@ -1,0 +1,17 @@
+name: river
+description: A starting point for Dart libraries or applications.
+version: 1.0.0
+resolution: workspace
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.9.3
+
+# Add regular dependencies here.
+dependencies:
+  riscv: ^1.0.0
+  # path: ^1.9.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

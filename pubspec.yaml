@@ -1,0 +1,12 @@
+name: river_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.9.3
+
+workspace:
+  - packages/riscv
+  - packages/river
+  - packages/river_adl
+  - packages/river_emulator
+  - packages/river_hdl

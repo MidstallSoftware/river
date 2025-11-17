@@ -1,0 +1,19 @@
+name: river_emulator
+description: A sample command-line application.
+version: 1.0.0
+resolution: workspace
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.9.3
+
+# Add regular dependencies here.
+dependencies:
+  args: ^2.7.0
+  path: ^1.9.1
+  riscv: ^1.0.0
+  river: ^1.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
