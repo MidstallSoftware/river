@@ -58,7 +58,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.sub, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.eq,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -75,7 +75,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.sub, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.ne,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -92,7 +92,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.slt, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.ne,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -109,7 +109,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.slt, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.eq,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -124,7 +124,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.sltu, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.ne,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -141,7 +141,7 @@ const rv32i = RiscVExtension(
         AluMicroOp(MicroOpAluFunct.sltu, MicroOpField.rs1, MicroOpField.rs2),
         BranchIfMicroOp(
           MicroOpCondition.eq,
-          MicroOpField.pc,
+          MicroOpSource.alu,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
@@ -531,14 +531,14 @@ const rv32i = RiscVExtension(
       opcode: 0x73,
       funct3: 0x0,
       decode: ITypeDecode.decode,
-      microcode: [TrapMicroOp(MicroOpTrap.ecall)],
+      microcode: [TrapMicroOp(Trap.ecall)],
     ),
     Operation<IType>(
       mnemonic: 'ebreak',
       opcode: 0x73,
       funct3: 0x0,
       decode: ITypeDecode.decode,
-      microcode: [TrapMicroOp(MicroOpTrap.ebreak)],
+      microcode: [TrapMicroOp(Trap.ebreak)],
     ),
   ],
   name: 'RV32I',

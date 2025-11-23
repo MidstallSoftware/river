@@ -5,7 +5,7 @@ sealed class MicroOp {
   const MicroOp();
 }
 
-enum MicroOpCondition { eq, ne, lt, ge, le }
+enum MicroOpCondition { eq, ne, lt, gt, ge, le }
 
 enum MicroOpAluFunct { add, sub, mul, and, or, xor, sll, srl, sra, slt, sltu }
 
@@ -13,11 +13,46 @@ enum MicroOpSource { alu, mem, imm, rs1, rs2, sp }
 
 enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
 
-enum MicroOpLink { ra }
+enum MicroOpLink {
+  ra(Register.x1);
 
-enum MicroOpMemSize { byte, half, word, dword }
+  const MicroOpLink(this.reg);
 
-enum MicroOpTrap { ecall, ebreak, illegal }
+  final Register reg;
+}
+
+enum MicroOpMemSize {
+  byte(1),
+  half(2),
+  word(4),
+  dword(8);
+
+  const MicroOpMemSize(this.bytes);
+
+  final int bytes;
+
+  int get bits => bytes * 8;
+}
+
+class ReadCsrMicroOp extends MicroOp {
+  final MicroOpField source;
+
+  const ReadCsrMicroOp(this.source);
+
+  @override
+  String toString() => 'ReadCsrMicroOp($source)';
+}
+
+class WriteCsrMicroOp extends MicroOp {
+  final MicroOpField field;
+  final MicroOpSource source;
+  final int offset;
+
+  const WriteCsrMicroOp(this.field, this.source, {this.offset = 0});
+
+  @override
+  String toString() => 'WriteCsrMicroOp($field, $source, offset: $offset)';
+}
 
 class ReadRegisterMicroOp extends MicroOp {
   final MicroOpField source;
@@ -49,9 +84,10 @@ class AluMicroOp extends MicroOp {
 
 class BranchIfMicroOp extends MicroOp {
   final MicroOpCondition condition;
-  final MicroOpField target;
+  final MicroOpSource target;
   final int offset;
   final MicroOpField? offsetField;
+
   const BranchIfMicroOp(
     this.condition,
     this.target, {
@@ -112,7 +148,7 @@ class MemStoreMicroOp extends MicroOp {
 }
 
 class TrapMicroOp extends MicroOp {
-  final MicroOpTrap kind;
+  final Trap kind;
   const TrapMicroOp(this.kind);
 
   @override
@@ -159,6 +195,7 @@ class BranchIfNonZeroMicroOp extends MicroOp {
 class WriteLinkRegisterMicroOp extends MicroOp {
   final MicroOpLink link;
   final int pcOffset;
+
   const WriteLinkRegisterMicroOp({required this.link, required this.pcOffset});
 
   @override

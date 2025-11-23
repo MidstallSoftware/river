@@ -1,4 +1,5 @@
 import '../../ops.dart';
+import '../../riscv_isa_base.dart';
 import 'decode.dart';
 import 'isa.dart';
 
@@ -313,7 +314,7 @@ const rvc = RiscVExtension(
       funct3: 0x4,
       decode: CompressedRTypeDecode.decode,
       opcodeRange: CompressedInstruction.opcodeRange,
-      microcode: [TrapMicroOp(MicroOpTrap.ebreak)],
+      microcode: [TrapMicroOp(Trap.ebreak)],
     ),
     Operation<CompressedSSType>(
       mnemonic: 'c.swsp',

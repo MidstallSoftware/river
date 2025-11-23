@@ -93,28 +93,10 @@ void main(List<String> arguments) {
       (throw 'Invalid platform configuration');
 
   final emulator = RiverEmulator(soc: RiverSoCEmulator(socConfig));
-
-  print(emulator);
-
   emulator.reset();
-  print(emulator);
 
-  final prog = [
-    0x00100093,
-    0x00200113,
-    0x00300193,
-    0x00400213,
-    0x00500293,
-    0x000000b3,
-    0x00000133,
-    0x000001b3,
-    0x00000233,
-    0x000002b3,
-  ];
-
-  for (final p in prog) {
-    print(emulator.soc.cores[0].decode(p));
-    print(emulator.soc.cores[0].cycle(p));
-    print(emulator);
+  Map<int, int> pcs = {};
+  while (true) {
+    pcs = emulator.soc.run(pcs);
   }
 }

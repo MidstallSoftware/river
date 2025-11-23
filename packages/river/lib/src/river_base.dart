@@ -63,6 +63,7 @@ class InterruptController {
 class RiverCore {
   final int vendorId;
   final int archId;
+  final int impId;
   final int hartId;
   final int resetVector;
   final Mxlen mxlen;
@@ -73,10 +74,13 @@ class RiverCore {
   final MicrocodeMode microcodeMode;
   final ExecutionMode executionMode;
   final L1Cache? l1cache;
+  final bool hasSupervisor;
+  final bool hasUser;
 
   const RiverCore({
     this.vendorId = 0,
     this.archId = 0,
+    this.impId = 0,
     this.hartId = 0,
     this.resetVector = 0,
     required this.clock,
@@ -87,11 +91,14 @@ class RiverCore {
     this.microcodeMode = MicrocodeMode.none,
     this.executionMode = ExecutionMode.in_order,
     this.l1cache,
+    this.hasSupervisor = true,
+    this.hasUser = true,
   });
 
   const RiverCore._32({
     this.vendorId = 0,
     this.archId = 0,
+    this.impId = 0,
     this.hartId = 0,
     this.resetVector = 0,
     required this.clock,
@@ -101,11 +108,14 @@ class RiverCore {
     this.microcodeMode = MicrocodeMode.none,
     this.executionMode = ExecutionMode.in_order,
     this.l1cache,
+    this.hasSupervisor = false,
+    this.hasUser = false,
   }) : mxlen = Mxlen.mxlen_32;
 
   const RiverCore._64({
     this.vendorId = 0,
     this.archId = 0,
+    this.impId = 0,
     this.hartId = 0,
     this.resetVector = 0,
     required this.clock,
@@ -115,6 +125,8 @@ class RiverCore {
     this.microcodeMode = MicrocodeMode.none,
     this.executionMode = ExecutionMode.in_order,
     this.l1cache,
+    this.hasSupervisor = false,
+    this.hasUser = false,
   }) : mxlen = Mxlen.mxlen_64;
 
   String? get implementsName {

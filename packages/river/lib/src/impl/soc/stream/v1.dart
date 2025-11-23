@@ -1,3 +1,4 @@
+import 'package:riscv/riscv.dart';
 import '../../core/v1.dart';
 import '../../../interconnect/base.dart';
 import '../../../interconnect/wishbone.dart';
@@ -110,7 +111,7 @@ class StreamV1SoC extends RiverSoC {
           lines: interrupts,
         ),
       ],
-      mmu: Mmu(blocks: mmap),
+      mmu: Mmu(mxlen: Mxlen.mxlen_32, blocks: mmap),
       clock: sysclk.clock,
       l1cache: L1Cache.split(
         accessor: CacheAccessor(

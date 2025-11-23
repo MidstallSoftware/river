@@ -3,6 +3,62 @@ import 'helpers.dart';
 const int kInstructionBits = 32;
 const int kInstructionBytes = kInstructionBits ~/ 8;
 
+enum Trap {
+  illegal(2, 2, 2),
+  ebreak(3, 3, 3),
+  ecall(11, 9, 8),
+  misalignedLoad(4, 4, 4),
+  loadAccess(5, 5, 5),
+  misalignedStore(6, 6, 6),
+  storeAccess(7, 7, 7);
+
+  const Trap(this.mcause, this.scause, this.ucause);
+
+  final int mcause;
+  final int scause;
+  final int ucause;
+}
+
+enum PagingMode {
+  bare(
+    0,
+    levels: 0,
+    vpnBits: 0,
+    supportedMxlens: [Mxlen.mxlen_32, Mxlen.mxlen_64],
+  ),
+  sv32(
+    1,
+    levels: 2,
+    vpnBits: 10,
+    supportedMxlens: [Mxlen.mxlen_32, Mxlen.mxlen_64],
+  ),
+  sv39(8, levels: 3, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]),
+  sv48(9, levels: 4, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]),
+  sv57(10, levels: 5, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]);
+
+  const PagingMode(
+    this.id, {
+    required this.levels,
+    required this.vpnBits,
+    required this.supportedMxlens,
+  });
+
+  final int id;
+  final int levels;
+  final int vpnBits;
+  final List supportedMxlens;
+
+  bool isSupported(Mxlen mxlen) => supportedMxlens.contains(mxlen);
+
+  static PagingMode? fromId(int id) {
+    for (final mode in PagingMode.values) {
+      if (mode.id == id) return mode;
+    }
+
+    return null;
+  }
+}
+
 abstract class InstructionType {
   /// The opcode which to execute
   final int opcode;
@@ -422,10 +478,22 @@ enum Register {
 }
 
 enum Mxlen {
-  mxlen_32(32),
-  mxlen_64(64);
+  mxlen_32(32, 1 << 30, 0x003F_FFFF, 0x3FF, 22),
+  mxlen_64(64, 1 << 62, 0x0FFF_FFFF_FFFF, 0xF, 60);
 
-  const Mxlen(this.size);
+  const Mxlen(
+    this.size,
+    this.misa,
+    this.satpPpnMask,
+    this.satpModeMask,
+    this.satpModeShift,
+  );
 
   final int size;
+  final int misa;
+  final int satpPpnMask;
+  final int satpModeMask;
+  final int satpModeShift;
+
+  int get width => size ~/ 8;
 }
