@@ -29,17 +29,34 @@ class StreamV1SoC extends RiverSoC {
   @override
   List<Device> get devices => [
     Device.simple(
-      name: 'rom',
-      compatible: 'river,rom',
-      range: const BusAddressRange(0x00000000, 0x00001000),
-      fields: const {0: DeviceField('boot', 4)},
+      name: 'bootrom',
+      compatible: 'river,bootrom',
+      range: BusAddressRange(0x00010000, l1iSize),
+      fields: const {0: DeviceField('data', 4)},
       clock: sysclk.clock,
     ),
     Device.simple(
-      name: 'sram',
-      compatible: 'river,sram',
-      range: BusAddressRange(0x00001000, sramSize),
-      fields: const {0: DeviceField('data', 4)},
+      name: 'clint',
+      compatible: 'riscv,clint0',
+      range: const BusAddressRange(0x02000000, 0x00010000),
+      fields: const {
+        0x0000: DeviceField('msip', 4),
+        0x4000: DeviceField('mtimecmp', 8),
+        0xBFF8: DeviceField('mtime', 8),
+      },
+      clock: sysclk.clock,
+    ),
+    Device.simple(
+      name: 'plic',
+      compatible: 'riscv,plic0',
+      range: const BusAddressRange(0x0C000000, 0x00400000),
+      fields: {
+        0x000000: DeviceField('priority', 4),
+        0x000100: DeviceField('pending', 4),
+        0x000200: DeviceField('enable_cpu0', 4),
+        0x200000: DeviceField('threshold_cpu0', 4),
+        0x200004: DeviceField('claim_cpu0', 4),
+      },
       clock: sysclk.clock,
     ),
     Device.simple(
@@ -67,18 +84,6 @@ class StreamV1SoC extends RiverSoC {
       clock: sysclk.clock,
     ),
     Device.simple(
-      name: 'timer0',
-      compatible: 'river,timer',
-      interrupts: const [0],
-      range: const BusAddressRange(0x10002000, 0x00001000),
-      fields: const {
-        0: DeviceField('ctrl', 4),
-        1: DeviceField('value', 4),
-        2: DeviceField('compare', 4),
-      },
-      clock: lfclk.clock,
-    ),
-    Device.simple(
       name: 'l1cache',
       compatible: 'river,cache',
       range: BusAddressRange(0x10004000, l1Size),
@@ -95,6 +100,13 @@ class StreamV1SoC extends RiverSoC {
       range: BusAddressRange(0x20000000, flashSize),
       fields: const {0: DeviceField('read', 4)},
     ),
+    Device.simple(
+      name: 'sram',
+      compatible: 'river,sram',
+      range: BusAddressRange(0x80000000, sramSize),
+      fields: const {0: DeviceField('data', 4)},
+      clock: sysclk.clock,
+    ),
   ];
 
   @override
@@ -107,7 +119,7 @@ class StreamV1SoC extends RiverSoC {
       interrupts: const [
         InterruptController(
           name: '/cpu0/interrupts',
-          baseAddr: 0x10003000,
+          baseAddr: 0x0C000000,
           lines: interrupts,
         ),
       ],
@@ -125,6 +137,7 @@ class StreamV1SoC extends RiverSoC {
         ways: 4,
         lineSize: 64,
       ),
+      resetVector: 0x00010000,
     ),
   ];
 
@@ -187,7 +200,6 @@ class StreamV1SoC extends RiverSoC {
        l1Size = 0x20000;
 
   static const List<InterruptLine> interrupts = [
-    InterruptLine(irq: 0, source: '/timer0', target: '/cpu0'),
     InterruptLine(irq: 1, source: '/uart0', target: '/cpu0'),
     InterruptLine(irq: 2, source: '/gpio', target: '/cpu0'),
   ];

@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'package:river/river.dart';
 import 'core.dart';
 import 'dev.dart';
+import 'devices.dart';
 
 /// Emulator of the SoC
 class RiverSoCEmulator {
@@ -17,12 +18,16 @@ class RiverSoCEmulator {
 
   RiverSoCEmulator(
     this.config, {
-    Map<String, DeviceFactory> deviceFactory = const {},
+    Map<String, Map<String, String>> deviceOptions = const {},
+    Map<String, DeviceEmulatorFactory> deviceFactory = kDeviceEmulatorFactory,
   }) : _cores = const [],
        _devices = const [] {
     _devices = config.devices.map((dev) {
       if (deviceFactory.containsKey(dev.compatible)) {
-        return deviceFactory[dev.compatible]!(dev);
+        return deviceFactory[dev.compatible]!(
+          dev,
+          deviceOptions[dev.name] ?? {},
+        );
       }
 
       return DeviceEmulator(dev);

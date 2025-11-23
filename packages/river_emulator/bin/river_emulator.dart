@@ -25,6 +25,12 @@ void main(List<String> arguments) {
     allowed: RiverPlatformChoice.values.map((v) => v.name).toList(),
   );
 
+  parser.addMultiOption(
+    'device-option',
+    help: 'Adds an option when configuring a device',
+    splitCommas: false,
+  );
+
   parser.addFlag('help', help: 'Prints the usage');
 
   final args = parser.parse(arguments);
@@ -92,11 +98,53 @@ void main(List<String> arguments) {
       }) ??
       (throw 'Invalid platform configuration');
 
-  final emulator = RiverEmulator(soc: RiverSoCEmulator(socConfig));
+  final emulator = RiverEmulator(
+    soc: RiverSoCEmulator(
+      socConfig,
+      deviceOptions: Map.fromEntries(
+        args
+            .multiOption('device-option')
+            .map((option) {
+              final i = option.indexOf('.');
+              assert(i > 0);
+              return option.substring(0, i);
+            })
+            .map(
+              (key) => MapEntry(
+                key,
+                Map.fromEntries(
+                  args
+                      .multiOption('device-option')
+                      .where((option) {
+                        final i = option.indexOf('.');
+                        assert(i > 0);
+                        return option.substring(0, i) == key;
+                      })
+                      .map((option) {
+                        final i = option.indexOf('.');
+                        assert(i > 0);
+
+                        final entry = option.substring(i + 1);
+
+                        final x = entry.indexOf('=');
+                        assert(x > 0);
+
+                        return MapEntry(
+                          entry.substring(0, x),
+                          entry.substring(x + 1),
+                        );
+                      }),
+                ),
+              ),
+            ),
+      ),
+    ),
+  );
   emulator.reset();
 
   Map<int, int> pcs = {};
   while (true) {
     pcs = emulator.soc.run(pcs);
+    print('$emulator $pcs');
   }
 }

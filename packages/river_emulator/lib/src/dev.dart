@@ -2,7 +2,8 @@ import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
 import 'core.dart';
 
-typedef DeviceFactory = DeviceEmulator Function(Device);
+typedef DeviceEmulatorFactory =
+    DeviceEmulator Function(Device, Map<String, String>);
 
 class DeviceEmulator {
   final Device config;
@@ -28,11 +29,11 @@ class DeviceAccessorEmulator {
 
   const DeviceAccessorEmulator(this.config);
 
-  int read(int addr) {
+  int read(int addr, Mxlen mxlen) {
     throw TrapException(Trap.loadAccess, addr);
   }
 
-  void write(int addr, int _value) {
+  void write(int addr, int _value, Mxlen mxlen) {
     throw TrapException(Trap.storeAccess, addr);
   }
 }

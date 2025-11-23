@@ -183,7 +183,7 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        return dev.read(addr - block.start);
+        return dev.read(addr - block.start, config.mxlen);
       }
     }
 
@@ -213,7 +213,7 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        dev.write(addr - block.start, value);
+        dev.write(addr - block.start, value, config.mxlen);
         return;
       }
     }

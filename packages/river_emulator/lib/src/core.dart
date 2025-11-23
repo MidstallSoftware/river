@@ -6,6 +6,17 @@ import 'dev.dart';
 import 'mmu.dart';
 import 'int.dart';
 
+class AbortException extends TrapException {
+  final String message;
+
+  const AbortException(super.trap, this.message, [super.tval = null]);
+  const AbortException.illegalInstruction(this.message)
+    : super(Trap.illegal, null);
+
+  @override
+  String toString() => 'AbortException($trap, "$message", $tval)';
+}
+
 class TrapException implements Exception {
   final Trap trap;
 
@@ -27,9 +38,10 @@ class RiverCoreEmulatorState {
 
   InstructionType ir;
 
-  RiverCoreEmulatorState(this.pc, this.ir) : alu = 0;
+  RiverCoreEmulatorState(this.pc, this.ir, this.sp) : alu = 0;
 
   int alu;
+  int sp;
   int get rs1 => _rs1 ?? ir.toMap()['rs1'] ?? 0;
   int get rs2 => _rs2 ?? ir.toMap()['rs2'] ?? 0;
   int get rd => _rd ?? ir.toMap()['rd'] ?? 0;
@@ -58,6 +70,8 @@ class RiverCoreEmulatorState {
         return register ? imm : ir.imm;
       case MicroOpField.pc:
         return pc;
+      case MicroOpField.sp:
+        return sp;
       default:
         throw 'Invalid field $field';
     }
@@ -77,6 +91,9 @@ class RiverCoreEmulatorState {
       case MicroOpField.imm:
         _imm = value;
         break;
+      case MicroOpField.sp:
+        sp = value;
+        break;
       default:
         throw 'Invalid field $field';
     }
@@ -84,7 +101,7 @@ class RiverCoreEmulatorState {
 
   @override
   String toString() =>
-      'RiverCoreEmulatorState($pc, $ir, rd: $rd, rs1: $rs1, rs2: $rs2, imm: $imm, alu: $alu)';
+      'RiverCoreEmulatorState($pc, $ir, rd: $rd, rs1: $rs1, rs2: $rs2, imm: $imm, alu: $alu, sp: $sp)';
 }
 
 class RiverCoreEmulator {
@@ -159,7 +176,7 @@ class RiverCoreEmulator {
 
   RiverCoreEmulatorState execute(int pc, InstructionType instr) {
     final op = findOperationByInstruction(instr)!;
-    var state = RiverCoreEmulatorState(pc, instr);
+    var state = RiverCoreEmulatorState(pc, instr, xregs[Register.x2] ?? 0);
     state = _innerExecute(state, op);
     return state;
   }
@@ -274,6 +291,11 @@ class RiverCoreEmulator {
 
     _mode = targetMode;
     final tvec = csrs.read(tvecCsr.address, this);
+
+    if (tvec == 0)
+      throw AbortException.illegalInstruction(
+        'Double fault due to $tvecCsr being invalid ($tvec): $e',
+      );
 
     final base = tvec & ~0x3;
     final mode = tvec & 0x3;
@@ -607,7 +629,7 @@ class RiverCoreEmulator {
             continue;
           }
 
-          var state = RiverCoreEmulatorState(pc, ir);
+          var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
           state = _innerExecute(state, op);
           return state.pc;
         }
