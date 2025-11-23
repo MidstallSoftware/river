@@ -35,6 +35,27 @@
           }:
           let
             treefmtEval = inputs.treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+            version = "0.1.0-git+${self.shortRev or "dirty"}";
+            pubspecLock = lib.importJSON ./pubspec.lock.json;
+
+            inherit (pkgs) buildDartApplication;
+
+            buildDartTest =
+              args:
+              buildDartApplication (
+                args
+                // {
+                  pname = "${args.pname}-tests";
+
+                  buildPhase = ''
+                    runHook preBuild
+                    dart --packages=.dart_tool/package_config.json test --file-reporter json:$out
+                    runHook postBuild
+                  '';
+
+                  dontInstall = true;
+                }
+              );
           in
           {
             _module.args.pkgs = import inputs.nixpkgs {
@@ -46,11 +67,68 @@
 
             checks = {
               formatting = treefmtEval.config.build.check self;
+            }
+            // lib.mapAttrs' (name: lib.nameValuePair "${name}-tests") (
+              lib.genAttrs
+                [
+                  "riscv"
+                  "river"
+                  "river_adl"
+                  "river_emulator"
+                  "river_hdl"
+                ]
+                (
+                  pname:
+                  buildDartTest {
+                    inherit pname;
+                    inherit version pubspecLock;
+
+                    src = ./.;
+                    packageRoot = "packages/${pname}";
+                  }
+                )
+            );
+
+            packages = {
+              default = buildDartApplication {
+                pname = "river";
+                inherit version pubspecLock;
+
+                src = ./.;
+
+                dartEntryPoints = {
+                  "bin/river-emulator" = "packages/river_emulator/bin/river_emulator.dart";
+                  # TODO: add HDL
+                };
+
+                preBuild = ''
+                  mkdir -p bin
+                '';
+              };
+              emulator = buildDartApplication {
+                pname = "river-emulator";
+                inherit version pubspecLock;
+
+                src = ./.;
+                packageRoot = "packages/river_emulator";
+
+                dartEntryPoints."bin/river-emulator" = "packages/river_emulator/bin/river_emulator.dart";
+
+                preBuild = ''
+                  mkdir -p bin
+                '';
+              };
             };
 
             devShells.default = pkgs.mkShell {
               packages = with pkgs; [
+                yq
                 dart
+                yosys
+                icesprog
+                icestorm
+                openroad
+                nextpnr
               ];
             };
           };

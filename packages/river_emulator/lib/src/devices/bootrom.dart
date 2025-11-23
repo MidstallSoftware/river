@@ -3,12 +3,15 @@ import 'dart:convert';
 
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
+import '../core.dart';
 import '../dev.dart';
+import '../soc.dart';
 
 class BootromEmulator extends DeviceEmulator {
   final List<int> data;
+  bool enabled;
 
-  BootromEmulator(super.config, this.data);
+  BootromEmulator(super.config, this.data) : enabled = true;
 
   @override
   DeviceAccessorEmulator? get memAccessor => BootromAccessorEmulator(this);
@@ -16,7 +19,11 @@ class BootromEmulator extends DeviceEmulator {
   @override
   String toString() => 'BootromEmulator(config: $config)';
 
-  static DeviceEmulator create(Device config, Map<String, String> options) {
+  static DeviceEmulator create(
+    Device config,
+    Map<String, String> options,
+    RiverSoCEmulator _soc,
+  ) {
     var data = List.filled(config.mmap!.size, 0);
 
     if (options.containsKey('file')) {
@@ -39,9 +46,12 @@ class BootromAccessorEmulator extends DeviceAccessorEmulator {
   BootromAccessorEmulator(this.rom) : super(rom.config.accessor!);
 
   @override
-  int read(int addr, Mxlen mxlen) => rom.data
-      .getRange(addr, addr + mxlen.width)
-      .toList()
-      .reversed
-      .fold(0, (v, i) => (v << 8) | (i & 0xFF));
+  int read(int addr, Mxlen mxlen) {
+    if (!rom.enabled) throw TrapException(Trap.loadAccess, addr);
+    return rom.data
+        .getRange(addr, addr + mxlen.width)
+        .toList()
+        .reversed
+        .fold(0, (v, i) => (v << 8) | (i & 0xFF));
+  }
 }

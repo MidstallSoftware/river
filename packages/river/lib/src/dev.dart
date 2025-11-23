@@ -19,6 +19,18 @@ class DeviceAccessor {
 
   const DeviceAccessor(this.path, this.fields);
 
+  int? fieldAddress(String name) {
+    var offset = 0;
+    for (final entry in fields.entries) {
+      final field = entry.value;
+      if (name == field.name) {
+        return offset;
+      }
+      offset += field.width;
+    }
+    return null;
+  }
+
   DeviceField? getField(int addr) {
     var offset = 0;
     for (final entry in fields.entries) {
@@ -29,6 +41,28 @@ class DeviceAccessor {
       offset += field.width;
     }
     return null;
+  }
+
+  List<DeviceField> getFields(int addr, int width) {
+    final end = addr + width;
+
+    var offset = 0;
+    List<DeviceField> list = [];
+    for (final entry in fields.entries) {
+      final field = entry.value;
+
+      final fieldStart = offset;
+      final fieldEnd = offset + field.width;
+
+      final overlaps = (addr < fieldEnd) && (end > fieldStart);
+
+      if (overlaps) {
+        list.add(field);
+      }
+
+      offset = fieldEnd;
+    }
+    return list;
   }
 
   String? readPath(int addr) {

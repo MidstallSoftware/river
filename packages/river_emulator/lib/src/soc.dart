@@ -27,6 +27,7 @@ class RiverSoCEmulator {
         return deviceFactory[dev.compatible]!(
           dev,
           deviceOptions[dev.name] ?? {},
+          this,
         );
       }
 
