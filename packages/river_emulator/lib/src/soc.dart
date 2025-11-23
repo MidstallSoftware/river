@@ -58,7 +58,6 @@ class RiverSoCEmulator {
 
   Map<int, int> run(Map<int, int> pcs) {
     increment();
-    // TODO: check pending interrupts and handle them
     return runPipelines(pcs);
   }
 

@@ -148,11 +148,17 @@ class MemStoreMicroOp extends MicroOp {
 }
 
 class TrapMicroOp extends MicroOp {
-  final Trap kind;
-  const TrapMicroOp(this.kind);
+  final Trap kindMachine;
+  final Trap? kindSupervisor;
+  final Trap? kindUser;
+
+  const TrapMicroOp(this.kindMachine, this.kindSupervisor, this.kindUser);
+  const TrapMicroOp.one(this.kindMachine)
+    : kindSupervisor = null,
+      kindUser = null;
 
   @override
-  String toString() => 'TrapMicroOp($kind)';
+  String toString() => 'TrapMicroOp($kindMachine, $kindSupervisor, $kindUser)';
 }
 
 class FenceMicroOp extends MicroOp {
@@ -160,6 +166,15 @@ class FenceMicroOp extends MicroOp {
 
   @override
   String toString() => 'FenceMicroOp()';
+}
+
+class ReturnMicroOp extends MicroOp {
+  final PrivilegeMode mode;
+
+  const ReturnMicroOp(this.mode);
+
+  @override
+  String toString() => 'ReturnMicroOp($mode)';
 }
 
 class BranchIfZeroMicroOp extends MicroOp {
@@ -209,6 +224,7 @@ class Operation<T extends InstructionType> {
   final int? funct7;
   final T Function(int instr) decode;
   final BitRange opcodeRange;
+  final List<PrivilegeMode> allowedLevels;
   final List<MicroOp> microcode;
 
   const Operation({
@@ -218,6 +234,7 @@ class Operation<T extends InstructionType> {
     this.funct7,
     required this.decode,
     this.opcodeRange = Instruction.opcodeRange,
+    this.allowedLevels = PrivilegeMode.values,
     this.microcode = const [],
   });
 
@@ -227,7 +244,7 @@ class Operation<T extends InstructionType> {
 
   @override
   String toString() =>
-      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct3: $funct3, funct7: $funct7, decode: $decode, microcode: $microcode)';
+      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct3: $funct3, funct7: $funct7, decode: $decode, allowedLevels: $allowedLevels, microcode: $microcode)';
 }
 
 class RiscVExtension {

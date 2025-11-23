@@ -3,20 +3,65 @@ import 'helpers.dart';
 const int kInstructionBits = 32;
 const int kInstructionBytes = kInstructionBits ~/ 8;
 
+enum PrivilegeMode {
+  machine(3),
+  supervisor(1),
+  user(0);
+
+  const PrivilegeMode(this.id);
+
+  final int id;
+
+  static PrivilegeMode? find(int id) {
+    for (final mode in PrivilegeMode.values) {
+      if (mode.id == id) return mode;
+    }
+    return null;
+  }
+}
+
 enum Trap {
-  illegal(2, 2, 2),
-  ebreak(3, 3, 3),
-  ecall(11, 9, 8),
-  misalignedLoad(4, 4, 4),
-  loadAccess(5, 5, 5),
-  misalignedStore(6, 6, 6),
-  storeAccess(7, 7, 7);
+  instructionMisaligned(0, 0, 0, false),
+  instructionAccessFault(1, 1, 1, false),
+  illegal(2, 2, 2, false),
+  breakpoint(3, 3, 3, false),
 
-  const Trap(this.mcause, this.scause, this.ucause);
+  misalignedLoad(4, 4, 4, false),
+  loadAccess(5, 5, 5, false),
 
-  final int mcause;
-  final int scause;
-  final int ucause;
+  misalignedStore(6, 6, 6, false),
+  storeAccess(7, 7, 7, false),
+
+  ecallU(8, 8, 8, false),
+  ecallS(9, 9, 9, false),
+  ecallM(11, 11, 11, false),
+
+  instructionPageFault(12, 12, 12, false),
+  loadPageFault(13, 13, 13, false),
+  storePageFault(15, 15, 15, false),
+
+  userSoftware(0, 0, 0, true),
+  supervisorSoftware(1, 1, 1, true),
+  machineSoftware(3, 3, 3, true),
+
+  userTimer(4, 4, 4, true),
+  supervisorTimer(5, 5, 5, true),
+  machineTimer(7, 7, 7, true),
+
+  userExternal(8, 8, 8, true),
+  supervisorExternal(9, 9, 9, true),
+  machineExternal(11, 11, 11, true);
+
+  final int mcauseCode;
+  final int scauseCode;
+  final int ucauseCode;
+  final bool interrupt;
+
+  const Trap(this.mcauseCode, this.scauseCode, this.ucauseCode, this.interrupt);
+
+  int mcause(int xlen) => (interrupt ? (1 << (xlen - 1)) : 0) | mcauseCode;
+  int scause(int xlen) => (interrupt ? (1 << (xlen - 1)) : 0) | scauseCode;
+  int ucause(int xlen) => (interrupt ? (1 << (xlen - 1)) : 0) | ucauseCode;
 }
 
 enum PagingMode {

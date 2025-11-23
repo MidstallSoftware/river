@@ -1,10 +1,10 @@
+import 'dart:collection';
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
 import 'csr.dart';
 import 'dev.dart';
 import 'mmu.dart';
-
-enum PrivilegeMode { machine, supervisor, user }
+import 'int.dart';
 
 class TrapException implements Exception {
   final Trap trap;
@@ -26,9 +26,8 @@ class RiverCoreEmulatorState {
   int? _imm;
 
   InstructionType ir;
-  RiverCoreEmulator core;
 
-  RiverCoreEmulatorState(this.pc, this.ir, this.core) : alu = 0;
+  RiverCoreEmulatorState(this.pc, this.ir) : alu = 0;
 
   int alu;
   int get rs1 => _rs1 ?? ir.toMap()['rs1'] ?? 0;
@@ -97,7 +96,11 @@ class RiverCoreEmulator {
   List<int> _reservationSet;
   bool idle;
 
+  List<InterruptControllerEmulator> _interrupts;
+
   PrivilegeMode get mode => _mode;
+  UnmodifiableListView<InterruptControllerEmulator> get interrupts =>
+      UnmodifiableListView(_interrupts);
 
   final MmuEmulator mmu;
 
@@ -113,6 +116,9 @@ class RiverCoreEmulator {
        ),
        _mode = PrivilegeMode.machine,
        _reservationSet = [],
+       _interrupts = config.interrupts
+           .map((config) => InterruptControllerEmulator(config))
+           .toList(),
        idle = false;
 
   void reset() {
@@ -153,17 +159,136 @@ class RiverCoreEmulator {
 
   RiverCoreEmulatorState execute(int pc, InstructionType instr) {
     final op = findOperationByInstruction(instr)!;
-    var state = RiverCoreEmulatorState(pc, instr, this);
+    var state = RiverCoreEmulatorState(pc, instr);
     state = _innerExecute(state, op);
     return state;
   }
 
-  int trap(int pc, TrapException e) {
-    csrs[CsrAddress.mcause.address].write(this, e.trap.mcause);
-    csrs[CsrAddress.mepc.address].write(this, pc);
-    csrs[CsrAddress.mtval.address].write(this, e.tval ?? 0);
+  PrivilegeMode _selectTrapTargetMode(Trap trap) {
+    if (_mode == PrivilegeMode.machine) {
+      return PrivilegeMode.machine;
+    }
 
-    return csrs[CsrAddress.mtvec.address].read(this);
+    if (!config.hasSupervisor) {
+      return PrivilegeMode.machine;
+    }
+
+    final int code = switch (_mode) {
+      PrivilegeMode.machine => trap.mcauseCode,
+      PrivilegeMode.supervisor => trap.scauseCode,
+      PrivilegeMode.user => trap.ucauseCode,
+    };
+
+    if (trap.interrupt) {
+      final mideleg = csrs.read(CsrAddress.mideleg.address, this);
+      final delegated = ((mideleg >> code) & 1) != 0;
+      return delegated ? PrivilegeMode.supervisor : PrivilegeMode.machine;
+    } else {
+      final medeleg = csrs.read(CsrAddress.medeleg.address, this);
+      final delegated = ((medeleg >> code) & 1) != 0;
+      return delegated ? PrivilegeMode.supervisor : PrivilegeMode.machine;
+    }
+  }
+
+  int _encodeCause(
+    Trap trap,
+    PrivilegeMode oldMode,
+    PrivilegeMode targetMode,
+    int xlen,
+  ) {
+    final code = switch (oldMode) {
+      PrivilegeMode.machine => trap.mcauseCode,
+      PrivilegeMode.supervisor => trap.scauseCode,
+      PrivilegeMode.user => trap.ucauseCode,
+    };
+
+    final interruptBit = trap.interrupt ? (1 << (xlen - 1)) : 0;
+    return interruptBit | code;
+  }
+
+  int trap(int pc, TrapException e) {
+    final oldMode = _mode;
+    final targetMode = _selectTrapTargetMode(e.trap);
+    final xlen = config.mxlen.size;
+
+    final causeValue = _encodeCause(e.trap, oldMode, targetMode, xlen);
+
+    late final CsrAddress causeCsr;
+    late final CsrAddress epcCsr;
+    late final CsrAddress tvalCsr;
+    late final CsrAddress tvecCsr;
+
+    switch (targetMode) {
+      case PrivilegeMode.machine:
+        causeCsr = CsrAddress.mcause;
+        epcCsr = CsrAddress.mepc;
+        tvalCsr = CsrAddress.mtval;
+        tvecCsr = CsrAddress.mtvec;
+        break;
+      case PrivilegeMode.supervisor:
+        causeCsr = CsrAddress.scause;
+        epcCsr = CsrAddress.sepc;
+        tvalCsr = CsrAddress.stval;
+        tvecCsr = CsrAddress.stvec;
+        break;
+      case PrivilegeMode.user:
+        causeCsr = CsrAddress.ucause;
+        epcCsr = CsrAddress.uepc;
+        tvalCsr = CsrAddress.utval;
+        tvecCsr = CsrAddress.utvec;
+        break;
+    }
+
+    var mstatus = csrs.read(CsrAddress.mstatus.address, this);
+
+    switch (targetMode) {
+      case PrivilegeMode.machine:
+        final mpp = oldMode.id;
+        mstatus = (mstatus & ~(0x3 << 11)) | (mpp << 11);
+
+        final mie = (mstatus >> 3) & 1;
+        mstatus = (mstatus & ~(1 << 7)) | (mie << 7);
+        mstatus &= ~(1 << 3);
+        break;
+
+      case PrivilegeMode.supervisor:
+        final spp = (oldMode == PrivilegeMode.user) ? 0 : 1;
+        mstatus = (mstatus & ~(1 << 8)) | (spp << 8);
+
+        final sie = (mstatus >> 1) & 1;
+        mstatus = (mstatus & ~(1 << 5)) | (sie << 5);
+        mstatus &= ~(1 << 1);
+        break;
+
+      case PrivilegeMode.user:
+        final uie = mstatus & 1;
+        mstatus = (mstatus & ~(1 << 4)) | (uie << 4);
+        mstatus &= ~1;
+        break;
+    }
+
+    csrs.write(causeCsr.address, causeValue, this);
+    csrs.write(epcCsr.address, pc, this);
+    csrs.write(tvalCsr.address, e.tval ?? 0, this);
+    csrs.write(CsrAddress.mstatus.address, mstatus, this);
+
+    _mode = targetMode;
+    final tvec = csrs.read(tvecCsr.address, this);
+
+    final base = tvec & ~0x3;
+    final mode = tvec & 0x3;
+
+    if (mode == 1 && e.trap.interrupt) {
+      final code = switch (_mode) {
+        PrivilegeMode.machine => e.trap.mcauseCode,
+        PrivilegeMode.supervisor => e.trap.scauseCode,
+        PrivilegeMode.user => e.trap.ucauseCode,
+      };
+
+      return base + 4 * code;
+    } else {
+      return base;
+    }
   }
 
   PrivilegeMode _effectiveMemPrivilege() {
@@ -218,7 +343,7 @@ class RiverCoreEmulator {
   }
 
   void write(int addr, int value) {
-    final phys = translate(addr, MemoryAccess.read);
+    final phys = translate(addr, MemoryAccess.write);
 
     if (_reservationSet.isNotEmpty) {
       if (!_reservationSet.contains(phys)) {
@@ -239,6 +364,11 @@ class RiverCoreEmulator {
     RiverCoreEmulatorState state,
     Operation op,
   ) {
+    if (!op.allowedLevels.contains(_mode)) {
+      state.pc = trap(state.pc, TrapException.illegalInstruction());
+      return state;
+    }
+
     for (final mop in op.microcode) {
       if (mop is WriteRegisterMicroOp) {
         final value = state.readSource(mop.source);
@@ -332,7 +462,14 @@ class RiverCoreEmulator {
           return state;
         }
       } else if (mop is TrapMicroOp) {
-        state.pc = trap(state.pc, TrapException(mop.kind));
+        state.pc = trap(
+          state.pc,
+          TrapException(switch (_mode) {
+            PrivilegeMode.machine => mop.kindMachine,
+            PrivilegeMode.supervisor => mop.kindSupervisor ?? mop.kindMachine,
+            PrivilegeMode.user => mop.kindUser ?? mop.kindMachine,
+          }),
+        );
         return state;
       } else if (mop is BranchIfZeroMicroOp) {
         final condition = state.readField(mop.field);
@@ -385,6 +522,70 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
+      } else if (mop is ReturnMicroOp) {
+        var mstatus = csrs.read(CsrAddress.mstatus.address, this);
+
+        try {
+          switch (mop.mode) {
+            case PrivilegeMode.machine:
+              {
+                final mpp = (mstatus >> 11) & 0x3;
+
+                final newMode =
+                    PrivilegeMode.find(mpp) ??
+                    (throw TrapException.illegalInstruction());
+
+                final mpie = (mstatus >> 7) & 1;
+                mstatus = (mstatus & ~(1 << 3)) | (mpie << 3);
+
+                mstatus |= (1 << 7);
+                mstatus &= ~(0x3 << 11);
+
+                csrs.write(CsrAddress.mstatus.address, mstatus, this);
+
+                _mode = newMode;
+
+                state.pc = csrs.read(CsrAddress.mepc.address, this);
+                break;
+              }
+            case PrivilegeMode.supervisor:
+              {
+                final spp = (mstatus >> 8) & 1;
+                final newMode = spp == 0
+                    ? PrivilegeMode.user
+                    : PrivilegeMode.supervisor;
+                final spie = (mstatus >> 5) & 1;
+                mstatus = (mstatus & ~(1 << 1)) | (spie << 1);
+
+                mstatus |= (1 << 5);
+                mstatus &= ~(1 << 8);
+
+                csrs.write(CsrAddress.mstatus.address, mstatus, this);
+
+                _mode = newMode;
+
+                state.pc = csrs.read(CsrAddress.sepc.address, this);
+                break;
+              }
+            case PrivilegeMode.user:
+              {
+                final upie = (mstatus >> 4) & 1;
+                mstatus = (mstatus & ~1) | upie;
+
+                mstatus |= (1 << 4);
+
+                _mode = PrivilegeMode.user;
+
+                csrs.write(CsrAddress.mstatus.address, mstatus, this);
+
+                state.pc = csrs.read(CsrAddress.uepc.address, this);
+                break;
+              }
+          }
+        } on TrapException catch (e) {
+          state.pc = trap(state.pc, e);
+          return state;
+        }
       } else if (mop is FenceMicroOp) {
         // Do nothing
       } else {
@@ -406,7 +607,7 @@ class RiverCoreEmulator {
             continue;
           }
 
-          var state = RiverCoreEmulatorState(pc, ir, this);
+          var state = RiverCoreEmulatorState(pc, ir);
           state = _innerExecute(state, op);
           return state.pc;
         }
@@ -416,8 +617,49 @@ class RiverCoreEmulator {
     return trap(pc, TrapException.illegalInstruction());
   }
 
+  int? _nextPendingIrq() {
+    int? bestIrq;
+    InterruptControllerEmulator? bestCtl;
+
+    for (final ctl in _interrupts) {
+      final irq = ctl.nextPending();
+      if (irq == null) continue;
+
+      if (bestIrq == null || irq < bestIrq) {
+        bestIrq = irq;
+        bestCtl = ctl;
+      }
+    }
+
+    return bestIrq;
+  }
+
+  Trap _selectExternalInterruptTrap() {
+    if (!config.hasSupervisor) {
+      return Trap.machineExternal;
+    }
+
+    final mideleg = csrs.read(CsrAddress.mideleg.address, this);
+    final delegated = ((mideleg >> Trap.machineExternal.mcauseCode) & 1) != 0;
+    return delegated ? Trap.supervisorExternal : Trap.machineExternal;
+  }
+
   int runPipeline(int pc) {
     if (idle) return pc;
+
+    final irq = _nextPendingIrq();
+    if (irq != null) {
+      final mie = csrs.read(CsrAddress.mie.address, this);
+      final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+
+      final mieMeie = ((mie >> Trap.machineExternal.mcauseCode) & 1) != 0;
+      final mstatusMie = ((mstatus >> 3) & 1) != 0;
+
+      if (mieMeie && mstatusMie) {
+        final trapTarget = _selectExternalInterruptTrap();
+        return trap(pc, TrapException(trapTarget));
+      }
+    }
 
     try {
       int instr = fetch(pc);
@@ -429,5 +671,5 @@ class RiverCoreEmulator {
 
   @override
   String toString() =>
-      'RiverCoreEmulator(xregs: $xregs, mmu: $mmu, csrs: ${csrs.toStringWithCore(this)}, mode: $mode)';
+      'RiverCoreEmulator(xregs: $xregs, mmu: $mmu, csrs: ${csrs.toStringWithCore(this)}, mode: $mode, interrupts: $interrupts)';
 }

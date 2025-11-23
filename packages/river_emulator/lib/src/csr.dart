@@ -142,6 +142,9 @@ class CsrFile {
       0xFFFFFFFF,
     );
 
+    csrs[CsrAddress.mideleg.address] = SimpleCsr(CsrAddress.mideleg.address);
+    csrs[CsrAddress.medeleg.address] = SimpleCsr(CsrAddress.medeleg.address);
+
     if (hasSupervisor) _initSupervisor();
     if (hasUser) _initUser();
   }

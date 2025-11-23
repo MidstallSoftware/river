@@ -314,7 +314,7 @@ const rvc = RiscVExtension(
       funct3: 0x4,
       decode: CompressedRTypeDecode.decode,
       opcodeRange: CompressedInstruction.opcodeRange,
-      microcode: [TrapMicroOp(Trap.ebreak)],
+      microcode: [TrapMicroOp.one(Trap.breakpoint)],
     ),
     Operation<CompressedSSType>(
       mnemonic: 'c.swsp',
