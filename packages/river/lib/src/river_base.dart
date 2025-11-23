@@ -179,6 +179,13 @@ abstract class RiverSoC {
     return null;
   }
 
+  Device? getDevice(String name) {
+    for (final dev in devices) {
+      if (dev.name == name) return dev;
+    }
+    return null;
+  }
+
   @override
   String toString() =>
       'RiverSoC(devices: $devices, clients: $clients, cores: $cores, fabric: $fabric, clocks: $clocks)';
