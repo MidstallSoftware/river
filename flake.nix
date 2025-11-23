@@ -42,20 +42,21 @@
 
             buildDartTest =
               args:
-              buildDartApplication (
+              (buildDartApplication (
                 args
                 // {
                   pname = "${args.pname}-tests";
 
                   buildPhase = ''
                     runHook preBuild
-                    dart --packages=.dart_tool/package_config.json test --file-reporter json:$out
+                    packageRun test $packageRoot --file-reporter json:$out
                     runHook postBuild
                   '';
 
                   dontInstall = true;
                 }
-              );
+              )).overrideAttrs
+                { outputs = [ "out" ]; };
           in
           {
             _module.args.pkgs = import inputs.nixpkgs {
