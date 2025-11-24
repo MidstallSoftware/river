@@ -47,9 +47,23 @@
                 // {
                   pname = "${args.pname}-tests";
 
+                  nativeBuildInputs = (args.nativeBuildInputs or [ ]) ++ [
+                    pkgs.lcov
+                  ];
+
                   buildPhase = ''
                     runHook preBuild
-                    packageRun test $packageRoot --file-reporter json:$out
+                    mkdir -p $out $out/coverage
+
+                    packageRun test \
+                      --coverage-path=$out/coverage/lcov.info \
+                      --file-reporter=json:$out/report.json \
+                      $packageRoot
+
+                    if [[ -s $out/coverage/lcov.info ]]; then
+                      genhtml -o $out/coverage/html $out/coverage/lcov.info
+                    fi
+
                     runHook postBuild
                   '';
 

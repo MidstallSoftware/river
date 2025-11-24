@@ -12,3 +12,6 @@ target
 .dart_tool/
 
 doc
+
+*.lcov
+*.dart.vm.json

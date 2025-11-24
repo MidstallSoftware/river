@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('Stream V1 - iCESugar', () {
-    test('Creation', () {
+    test('Configure', () {
       final socConfig = RiverSoCChoice.stream_v1.configure({
         'platform': 'icesugar',
       })!;
@@ -13,6 +13,18 @@ void main() {
 
       expect(soc.devices.length, 8);
       expect(soc.cores.length, 1);
+    });
+
+    test('Reset', () {
+      final socConfig = RiverSoCChoice.stream_v1.configure({
+        'platform': 'icesugar',
+      })!;
+
+      final soc = RiverSoCEmulator(socConfig);
+
+      soc.reset();
+      final pc = soc.runPipelines({})[0]! - 2;
+      expect(soc.config.cores[0].resetVector, pc);
     });
   });
 }
