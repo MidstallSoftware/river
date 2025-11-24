@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
 import 'package:river_emulator/river_emulator.dart';
 import 'package:test/test.dart';
@@ -15,16 +18,45 @@ void main() {
       expect(soc.cores.length, 1);
     });
 
-    test('Reset', () {
+    test('Read data', () {
       final socConfig = RiverSoCChoice.stream_v1.configure({
         'platform': 'icesugar',
       })!;
 
-      final soc = RiverSoCEmulator(socConfig);
+      final soc = RiverSoCEmulator(
+        socConfig,
+        deviceOptions: {
+          'bootrom': {'bytes': '002081B3'},
+        },
+      );
+      final mmap = soc.getDevice('bootrom')!.config.mmap!;
 
       soc.reset();
-      final pc = soc.runPipelines({})[0]! - 2;
-      expect(soc.config.cores[0].resetVector, pc);
+      expect(soc.cores[0].read(mmap.start), 0x002081B3);
+    });
+
+    test('Reset & execute', () {
+      final socConfig = RiverSoCChoice.stream_v1.configure({
+        'platform': 'icesugar',
+      })!;
+
+      final soc = RiverSoCEmulator(
+        socConfig,
+        deviceOptions: {
+          'bootrom': {'bytes': '00A08293'},
+        },
+      );
+
+      final mmap = soc.getDevice('bootrom')!.config.mmap!;
+
+      soc.reset();
+
+      soc.cores[0].xregs[Register.x1] = 12;
+
+      final pc = soc.runPipelines({})[0]!;
+      expect(soc.config.cores[0].resetVector, mmap!.start);
+      expect(soc.config.cores[0].resetVector, pc - 4);
+      expect(soc.cores[0].xregs[Register.x5], 22);
     });
   });
 }

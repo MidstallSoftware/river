@@ -29,7 +29,12 @@ class BootromEmulator extends DeviceEmulator {
     if (options.containsKey('file')) {
       data = File(options['file']!).readAsBytesSync();
     } else if (options.containsKey('bytes')) {
-      data = utf8.encode(options['bytes']!);
+      final bytes = options['bytes']!;
+      data = Iterable<int>.generate(bytes.length ~/ 2)
+          .map((i) => int.parse(bytes.substring(i * 2, i * 2 + 2), radix: 16))
+          .toList()
+          .reversed
+          .toList();
     }
 
     if (data.length < config.mmap!.size) {

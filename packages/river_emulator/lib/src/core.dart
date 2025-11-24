@@ -395,6 +395,11 @@ class RiverCoreEmulator {
       if (mop is WriteRegisterMicroOp) {
         final value = state.readSource(mop.source);
         final reg = Register.values[state.readField(mop.field)];
+        if (reg == Register.x0) {
+          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          return state;
+        }
+
         xregs[reg] = value;
       } else if (mop is ReadRegisterMicroOp) {
         final reg = Register.values[state.readField(mop.source)];

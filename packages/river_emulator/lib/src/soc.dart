@@ -42,6 +42,13 @@ class RiverSoCEmulator {
         .toList();
   }
 
+  DeviceEmulator? getDevice(String name) {
+    for (final dev in devices) {
+      if (dev.config.name == name) return dev;
+    }
+    return null;
+  }
+
   void reset() {
     for (final core in _cores) core.reset();
     for (final dev in _devices) dev.reset();

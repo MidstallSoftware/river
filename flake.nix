@@ -55,10 +55,10 @@
                     runHook preBuild
                     mkdir -p $out $out/coverage
 
-                    packageRun test \
-                      --coverage-path=$out/coverage/lcov.info \
-                      --file-reporter=json:$out/report.json \
-                      $packageRoot
+                    dart --packages=.dart_tool/package_config.json --pause-isolates-on-exit --disable-service-auth-codes --enable-vm-service=8181 $(packagePath test)/bin/test.dart $packageRoot --file-reporter=json:$out/report.json -r expanded &
+
+                    packageRun coverage -e collect_coverage --wait-paused --uri=http://127.0.0.1:8181/ -o $out/coverage/report.json --resume-isolates --scope-output=${args.pname}
+                    packageRun coverage -e format_coverage --packages=.dart_tool/package_config.json --lcov -i $out/coverage/report.json -o $out/coverage/lcov.info
 
                     if [[ -s $out/coverage/lcov.info ]]; then
                       genhtml -o $out/coverage/html $out/coverage/lcov.info
