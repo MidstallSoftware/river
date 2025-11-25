@@ -142,8 +142,10 @@
                 yosys
                 icesprog
                 icestorm
-                openroad
                 nextpnr
+                (openroad.overrideAttrs {
+                  doCheck = !pkgs.stdenv.hostPlatform.isAarch64;
+                })
               ];
             };
           };
