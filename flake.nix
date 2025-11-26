@@ -136,17 +136,23 @@
             };
 
             devShells.default = pkgs.mkShell {
-              packages = with pkgs; [
-                yq
-                dart
-                yosys
-                icesprog
-                icestorm
-                nextpnr
-                (openroad.overrideAttrs {
-                  doCheck = !pkgs.stdenv.hostPlatform.isAarch64;
-                })
-              ];
+              packages =
+                with pkgs;
+                (
+                  [
+                    yq
+                    dart
+                    yosys
+                    icestorm
+                    nextpnr
+                    (openroad.overrideAttrs {
+                      doCheck = !pkgs.stdenv.hostPlatform.isAarch64;
+                    })
+                  ]
+                  ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [
+                    icesprog
+                  ]
+                );
             };
           };
       }
