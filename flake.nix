@@ -145,12 +145,12 @@
                     yosys
                     icestorm
                     nextpnr
-                    (openroad.overrideAttrs {
-                      doCheck = !pkgs.stdenv.hostPlatform.isAarch64;
-                    })
                   ]
                   ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [
                     icesprog
+                    (openroad.overrideAttrs {
+                      doCheck = !pkgs.stdenv.hostPlatform.isAarch64;
+                    })
                   ]
                 );
             };

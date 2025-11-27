@@ -109,24 +109,34 @@ abstract class InstructionType {
   final int opcode;
   final int? funct3;
   final int? funct7;
+  final int? funct12;
 
-  const InstructionType({required this.opcode, this.funct3, this.funct7});
+  const InstructionType({
+    required this.opcode,
+    this.funct3,
+    this.funct7,
+    this.funct12,
+  });
 
   const InstructionType.map(Map<String, int> map)
     : opcode = map['opcode']!,
       funct3 = map['funct3'],
-      funct7 = map['funct7'];
+      funct7 = map['funct7'],
+      funct12 = map['funct12'];
 
   int get imm => 0;
 
-  bool matches(int bOpcode, int? bFunct3, int? bFunct7) =>
-      opcode == bOpcode && funct3 == bFunct3 && funct7 == bFunct7;
+  bool matches(int bOpcode, int? bFunct3, int? bFunct7, int? bFunct12) =>
+      opcode == bOpcode &&
+      funct3 == bFunct3 &&
+      funct7 == bFunct7 &&
+      funct12 == bFunct12;
 
   Map<String, int> toMap();
 
   @override
   String toString() =>
-      '${runtimeType.toString()}(opcode: $opcode, funct3: $funct3, funct7: $funct7)';
+      '${runtimeType.toString()}(opcode: $opcode, funct3: $funct3, funct7: $funct7, funct12: $funct12)';
 }
 
 /// R-Type RISC-V instruction
@@ -379,8 +389,11 @@ class UType extends InstructionType {
   int get imm => shifted_imm << 12;
 
   @override
-  bool matches(int bOpcode, int? bFunct3, int? bFunct7) =>
-      opcode == bOpcode && bFunct3 == null && bFunct7 == null;
+  bool matches(int bOpcode, int? bFunct3, int? bFunct7, int? bFunct12) =>
+      opcode == bOpcode &&
+      bFunct3 == null &&
+      bFunct7 == null &&
+      bFunct12 == null;
 
   @override
   Map<String, int> toMap() => {'opcode': opcode, 'rd': rd, 'imm': shifted_imm};
@@ -429,7 +442,8 @@ class JType extends InstructionType {
   }
 
   @override
-  bool matches(int bOpcode, int? _bFunct3, int? _bFunct7) => opcode == bOpcode;
+  bool matches(int bOpcode, int? _bFunct3, int? _bFunct7, int? _bFunct12) =>
+      opcode == bOpcode;
 
   @override
   Map<String, int> toMap() => {

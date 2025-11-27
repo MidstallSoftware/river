@@ -53,6 +53,8 @@ class RiverCoreEmulatorState {
         return imm;
       case MicroOpSource.alu:
         return alu;
+      case MicroOpSource.rs1:
+        return rs1;
       default:
         throw 'Invalid source $source';
     }
@@ -72,6 +74,25 @@ class RiverCoreEmulatorState {
         return pc;
       case MicroOpField.sp:
         return sp;
+      default:
+        throw 'Invalid field $field';
+    }
+  }
+
+  void clearField(MicroOpField field) {
+    switch (field) {
+      case MicroOpField.rd:
+        _rd = null;
+        break;
+      case MicroOpField.rs1:
+        _rs1 = null;
+        break;
+      case MicroOpField.rs2:
+        _rs2 = null;
+        break;
+      case MicroOpField.imm:
+        _imm = null;
+        break;
       default:
         throw 'Invalid field $field';
     }
@@ -109,13 +130,12 @@ class RiverCoreEmulator {
 
   Map<Register, int> xregs;
   CsrFile csrs;
-  PrivilegeMode _mode;
   List<int> _reservationSet;
   bool idle;
+  PrivilegeMode mode;
 
   List<InterruptControllerEmulator> _interrupts;
 
-  PrivilegeMode get mode => _mode;
   UnmodifiableListView<InterruptControllerEmulator> get interrupts =>
       UnmodifiableListView(_interrupts);
 
@@ -131,7 +151,7 @@ class RiverCoreEmulator {
          hasSupervisor: config.hasSupervisor,
          hasUser: config.hasUser,
        ),
-       _mode = PrivilegeMode.machine,
+       mode = PrivilegeMode.machine,
        _reservationSet = [],
        _interrupts = config.interrupts
            .map((config) => InterruptControllerEmulator(config))
@@ -139,7 +159,7 @@ class RiverCoreEmulator {
        idle = false;
 
   void reset() {
-    _mode = PrivilegeMode.machine;
+    mode = PrivilegeMode.machine;
     xregs = {};
     _reservationSet = [];
     idle = false;
@@ -182,7 +202,7 @@ class RiverCoreEmulator {
   }
 
   PrivilegeMode _selectTrapTargetMode(Trap trap) {
-    if (_mode == PrivilegeMode.machine) {
+    if (mode == PrivilegeMode.machine) {
       return PrivilegeMode.machine;
     }
 
@@ -190,7 +210,7 @@ class RiverCoreEmulator {
       return PrivilegeMode.machine;
     }
 
-    final int code = switch (_mode) {
+    final int code = switch (mode) {
       PrivilegeMode.machine => trap.mcauseCode,
       PrivilegeMode.supervisor => trap.scauseCode,
       PrivilegeMode.user => trap.ucauseCode,
@@ -224,7 +244,7 @@ class RiverCoreEmulator {
   }
 
   int trap(int pc, TrapException e) {
-    final oldMode = _mode;
+    final oldMode = this.mode;
     final targetMode = _selectTrapTargetMode(e.trap);
     final xlen = config.mxlen.size;
 
@@ -289,7 +309,7 @@ class RiverCoreEmulator {
     csrs.write(tvalCsr.address, e.tval ?? 0, this);
     csrs.write(CsrAddress.mstatus.address, mstatus, this);
 
-    _mode = targetMode;
+    this.mode = targetMode;
     final tvec = csrs.read(tvecCsr.address, this);
 
     if (tvec == 0)
@@ -301,7 +321,7 @@ class RiverCoreEmulator {
     final mode = tvec & 0x3;
 
     if (mode == 1 && e.trap.interrupt) {
-      final code = switch (_mode) {
+      final code = switch (this.mode) {
         PrivilegeMode.machine => e.trap.mcauseCode,
         PrivilegeMode.supervisor => e.trap.scauseCode,
         PrivilegeMode.user => e.trap.ucauseCode,
@@ -386,7 +406,7 @@ class RiverCoreEmulator {
     RiverCoreEmulatorState state,
     Operation op,
   ) {
-    if (!op.allowedLevels.contains(_mode)) {
+    if (!op.allowedLevels.contains(mode)) {
       state.pc = trap(state.pc, TrapException.illegalInstruction());
       return state;
     }
@@ -396,8 +416,7 @@ class RiverCoreEmulator {
         final value = state.readSource(mop.source);
         final reg = Register.values[state.readField(mop.field)];
         if (reg == Register.x0) {
-          state.pc = trap(state.pc, TrapException.illegalInstruction());
-          return state;
+          continue;
         }
 
         xregs[reg] = value;
@@ -442,6 +461,9 @@ class RiverCoreEmulator {
                     b.toUnsigned(config.mxlen.size)
                 ? 1
                 : 0;
+            break;
+          case MicroOpAluFunct.masked:
+            state.alu = a & ~b;
             break;
           default:
             throw 'Invalid ALU function ${mop.funct}';
@@ -491,7 +513,7 @@ class RiverCoreEmulator {
       } else if (mop is TrapMicroOp) {
         state.pc = trap(
           state.pc,
-          TrapException(switch (_mode) {
+          TrapException(switch (mode) {
             PrivilegeMode.machine => mop.kindMachine,
             PrivilegeMode.supervisor => mop.kindSupervisor ?? mop.kindMachine,
             PrivilegeMode.user => mop.kindUser ?? mop.kindMachine,
@@ -532,6 +554,11 @@ class RiverCoreEmulator {
       } else if (mop is ReadCsrMicroOp) {
         final reg = state.readField(mop.source);
 
+        if (mode == PrivilegeMode.user) {
+          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          return state;
+        }
+
         try {
           final value = csrs.read(reg, this);
           state.writeField(mop.source, value);
@@ -542,6 +569,11 @@ class RiverCoreEmulator {
       } else if (mop is WriteCsrMicroOp) {
         final value = state.readSource(mop.source);
         final reg = state.readField(mop.field);
+
+        if (mode == PrivilegeMode.user) {
+          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          return state;
+        }
 
         try {
           csrs.write(reg, value, this);
@@ -570,7 +602,7 @@ class RiverCoreEmulator {
 
                 csrs.write(CsrAddress.mstatus.address, mstatus, this);
 
-                _mode = newMode;
+                mode = newMode;
 
                 state.pc = csrs.read(CsrAddress.mepc.address, this);
                 break;
@@ -589,7 +621,7 @@ class RiverCoreEmulator {
 
                 csrs.write(CsrAddress.mstatus.address, mstatus, this);
 
-                _mode = newMode;
+                mode = newMode;
 
                 state.pc = csrs.read(CsrAddress.sepc.address, this);
                 break;
@@ -601,7 +633,7 @@ class RiverCoreEmulator {
 
                 mstatus |= (1 << 4);
 
-                _mode = PrivilegeMode.user;
+                mode = PrivilegeMode.user;
 
                 csrs.write(CsrAddress.mstatus.address, mstatus, this);
 
@@ -613,6 +645,26 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
+      } else if (mop is InterruptHoldMicroOp) {
+        final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+        final mie = (mstatus >> 3) & 1;
+        if (mie == 0) continue;
+
+        final pending = _nextPendingIrq();
+        if (pending != null) return state;
+
+        idle = true;
+      } else if (mop is ModifyLatchMicroOp) {
+        if (mop.replace) {
+          final value = state.readSource(mop.source);
+          state.writeField(mop.field, value);
+        } else {
+          state.clearField(mop.field);
+        }
+      } else if (mop is TlbFenceMicroOp) {
+        // TODO: once MMU has a TLB
+      } else if (mop is TlbInvalidateMicroOp) {
+        // TODO: once MMU has a TLB
       } else if (mop is FenceMicroOp) {
         // Do nothing
       } else {
@@ -633,6 +685,8 @@ class RiverCoreEmulator {
           } on DecodeException catch (exception) {
             continue;
           }
+
+          if (!op.matches(ir)) continue;
 
           var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
           state = _innerExecute(state, op);

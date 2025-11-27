@@ -7,7 +7,20 @@ sealed class MicroOp {
 
 enum MicroOpCondition { eq, ne, lt, gt, ge, le }
 
-enum MicroOpAluFunct { add, sub, mul, and, or, xor, sll, srl, sra, slt, sltu }
+enum MicroOpAluFunct {
+  add,
+  sub,
+  mul,
+  and,
+  or,
+  xor,
+  sll,
+  srl,
+  sra,
+  slt,
+  sltu,
+  masked,
+}
 
 enum MicroOpSource { alu, mem, imm, rs1, rs2, sp }
 
@@ -70,6 +83,17 @@ class WriteRegisterMicroOp extends MicroOp {
 
   @override
   String toString() => 'WriteRegisterMicroOp($field, $source, offset: $offset)';
+}
+
+class ModifyLatchMicroOp extends MicroOp {
+  final MicroOpField field;
+  final MicroOpSource source;
+  final bool replace;
+
+  const ModifyLatchMicroOp(this.field, this.source, this.replace);
+
+  @override
+  String toString() => 'ModifyLatchMicroOp($field, $source, $replace)';
 }
 
 class AluMicroOp extends MicroOp {
@@ -161,6 +185,27 @@ class TrapMicroOp extends MicroOp {
   String toString() => 'TrapMicroOp($kindMachine, $kindSupervisor, $kindUser)';
 }
 
+class TlbFenceMicroOp extends MicroOp {
+  const TlbFenceMicroOp();
+
+  @override
+  String toString() => 'TlbFenceMicroOp()';
+}
+
+class TlbInvalidateMicroOp extends MicroOp {
+  final MicroOpField addrField;
+  final MicroOpField asidField;
+
+  const TlbInvalidateMicroOp({
+    required this.addrField,
+    required this.asidField,
+  });
+
+  @override
+  String toString() =>
+      'TlbInvalidateMicroOp(addrField: $addrField, asidField: $asidField)';
+}
+
 class FenceMicroOp extends MicroOp {
   const FenceMicroOp();
 
@@ -217,11 +262,19 @@ class WriteLinkRegisterMicroOp extends MicroOp {
   String toString() => 'WriteLinkRegisterMicroOp($link, $pcOffset)';
 }
 
+class InterruptHoldMicroOp extends MicroOp {
+  const InterruptHoldMicroOp();
+
+  @override
+  String toString() => 'InterruptHoldMicroOp()';
+}
+
 class Operation<T extends InstructionType> {
   final String mnemonic;
   final int opcode;
   final int funct3;
   final int? funct7;
+  final int? funct12;
   final T Function(int instr) decode;
   final BitRange opcodeRange;
   final List<PrivilegeMode> allowedLevels;
@@ -232,19 +285,23 @@ class Operation<T extends InstructionType> {
     required this.opcode,
     required this.funct3,
     this.funct7,
+    this.funct12,
     required this.decode,
     this.opcodeRange = Instruction.opcodeRange,
     this.allowedLevels = PrivilegeMode.values,
     this.microcode = const [],
   });
 
-  bool matches(InstructionType ir) => ir.matches(opcode, funct3, funct7);
+  bool matches(InstructionType ir) =>
+      ir.matches(opcode, funct3, funct7, funct12);
 
   bool checkOpcode(int instr) => opcodeRange.decode(instr) == opcode;
 
   @override
   String toString() =>
-      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct3: $funct3, funct7: $funct7, decode: $decode, allowedLevels: $allowedLevels, microcode: $microcode)';
+      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct3: $funct3,'
+      ' funct7: $funct7, funct12: $funct12, decode: $decode,'
+      ' allowedLevels: $allowedLevels, microcode: $microcode)';
 }
 
 class RiscVExtension {

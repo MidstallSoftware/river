@@ -1,3 +1,6 @@
+import 'helpers.dart';
+import 'riscv_isa_base.dart';
+import 'riscv_isa_decode.dart';
 import 'ops.dart';
 
 enum CsrAddress {
@@ -93,3 +96,285 @@ enum CsrAddress {
     return null;
   }
 }
+
+class SystemType extends InstructionType {
+  final int rd;
+  final int rs1;
+
+  const SystemType({
+    required super.opcode,
+    required this.rd,
+    required super.funct3,
+    required this.rs1,
+    required super.funct12,
+  });
+
+  const SystemType.map(Map<String, int> map)
+    : rd = map['rd']!,
+      rs1 = map['rs1']!,
+      super.map(map);
+
+  @override
+  int get imm => funct12!;
+
+  @override
+  Map<String, int> toMap() => {
+    'opcode': opcode,
+    'rd': rd,
+    'funct3': funct3!,
+    'rs1': rs1,
+    'funct12': funct12!,
+  };
+
+  @override
+  String toString() =>
+      'SystemType(opcode: $opcode, rd: $rd, funct3: $funct3, rs1: $rs1, funct12: $funct12)';
+
+  static const BitStruct STRUCT = BitStruct({
+    'opcode': Instruction.opcodeRange,
+    'rd': BitRange(7, 11),
+    'funct3': BitRange(12, 14),
+    'rs1': BitRange(15, 19),
+    'funct12': BitRange(20, 31),
+  });
+
+  static SystemType decode(int instr) =>
+      SystemType.map(SystemType.STRUCT.decode(instr));
+}
+
+class SystemIType extends InstructionType {
+  final int _imm;
+
+  final int rd;
+  final int rs1;
+
+  const SystemIType({
+    required super.opcode,
+    required this.rd,
+    required super.funct3,
+    required this.rs1,
+    required int imm,
+  }) : _imm = imm;
+
+  const SystemIType.map(Map<String, int> map)
+    : rd = map['rd']!,
+      rs1 = map['rs1']!,
+      _imm = map['imm']!,
+      super.map(map);
+
+  @override
+  int get imm => _imm;
+
+  @override
+  Map<String, int> toMap() => {
+    'opcode': opcode,
+    'rd': rd,
+    'funct3': funct3!,
+    'rs1': rs1,
+    'imm': imm,
+  };
+
+  @override
+  String toString() =>
+      'SystemIType(opcode: $opcode, rd: $rd, funct3: $funct3, rs1: $rs1, imm: $imm)';
+
+  static const BitStruct STRUCT = BitStruct({
+    'opcode': Instruction.opcodeRange,
+    'rd': BitRange(7, 11),
+    'funct3': BitRange(12, 14),
+    'rs1': BitRange(15, 19),
+    'imm': BitRange(20, 31),
+  });
+
+  static SystemIType decode(int instr) =>
+      SystemIType.map(SystemIType.STRUCT.decode(instr));
+}
+
+class SystemRType extends InstructionType {
+  final int rd;
+  final int rs1;
+  final int rs2;
+
+  const SystemRType({
+    required super.opcode,
+    required this.rd,
+    required super.funct3,
+    required this.rs1,
+    required this.rs2,
+    required super.funct7,
+  });
+
+  const SystemRType.map(Map<String, int> map)
+    : rd = map['rd']!,
+      rs1 = map['rs1']!,
+      rs2 = map['rs2']!,
+      super.map(map);
+
+  @override
+  Map<String, int> toMap() => {
+    'opcode': opcode,
+    'rd': rd,
+    'funct3': funct3!,
+    'rs1': rs1,
+    'rs2': rs2,
+    'funct7': funct7!,
+  };
+
+  @override
+  String toString() =>
+      'SystemRType(opcode: $opcode, rd: $rd, funct3: $funct3, rs1: $rs1, rs2: $rs2, funct7: $funct7)';
+
+  static const BitStruct STRUCT = BitStruct({
+    'opcode': Instruction.opcodeRange,
+    'rd': BitRange(7, 11),
+    'funct3': BitRange(12, 14),
+    'rs1': BitRange(15, 19),
+    'rs2': BitRange(20, 24),
+    'funct7': BitRange(25, 31),
+  });
+
+  static SystemRType decode(int instr) =>
+      SystemRType.map(SystemRType.STRUCT.decode(instr));
+}
+
+const rv32Zicsr = RiscVExtension(
+  [
+    Operation<SystemIType>(
+      mnemonic: 'csrrw',
+      opcode: 0x73,
+      funct3: 0x1,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.rs1),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<SystemIType>(
+      mnemonic: 'csrrs',
+      opcode: 0x73,
+      funct3: 0x2,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        AluMicroOp(MicroOpAluFunct.or, MicroOpField.imm, MicroOpField.rs1),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<SystemIType>(
+      mnemonic: 'csrrc',
+      opcode: 0x73,
+      funct3: 0x3,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        BranchIfZeroMicroOp(field: MicroOpField.rs1, offset: 2),
+        AluMicroOp(MicroOpAluFunct.masked, MicroOpField.imm, MicroOpField.rs1),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<SystemIType>(
+      mnemonic: 'csrrwi',
+      opcode: 0x73,
+      funct3: 0x5,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.rs1),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<SystemIType>(
+      mnemonic: 'csrrsi',
+      opcode: 0x73,
+      funct3: 0x6,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        AluMicroOp(MicroOpAluFunct.or, MicroOpField.imm, MicroOpField.rs1),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<SystemIType>(
+      mnemonic: 'csrrci',
+      opcode: 0x73,
+      funct3: 0x7,
+      decode: SystemIType.decode,
+      microcode: [
+        ReadCsrMicroOp(MicroOpField.imm),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
+        AluMicroOp(MicroOpAluFunct.masked, MicroOpField.imm, MicroOpField.rs1),
+        ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
+        WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+  ],
+  name: 'Zicsr',
+  key: '_zicsr',
+);
+
+const rv32BasePrivilege = RiscVExtension([
+  Operation<SystemType>(
+    mnemonic: 'mret',
+    opcode: 0x73,
+    funct3: 0x0,
+    funct12: 0x302,
+    decode: SystemType.decode,
+    allowedLevels: [PrivilegeMode.machine],
+    microcode: [ReturnMicroOp(PrivilegeMode.machine)],
+  ),
+  Operation<SystemType>(
+    mnemonic: 'sret',
+    opcode: 0x73,
+    funct3: 0x0,
+    funct12: 0x102,
+    decode: SystemType.decode,
+    allowedLevels: [PrivilegeMode.supervisor, PrivilegeMode.machine],
+    microcode: [ReturnMicroOp(PrivilegeMode.supervisor)],
+  ),
+  Operation<SystemType>(
+    mnemonic: 'wfi',
+    opcode: 0x73,
+    funct3: 0x0,
+    funct7: 0x08,
+    decode: SystemType.decode,
+    microcode: [
+      const InterruptHoldMicroOp(),
+      UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+    ],
+  ),
+  Operation<SType>(
+    mnemonic: 'sfence.vma',
+    opcode: 0x73,
+    funct3: 0x1,
+    decode: STypeDecode.decode,
+    allowedLevels: [PrivilegeMode.supervisor, PrivilegeMode.machine],
+    microcode: [
+      ReadRegisterMicroOp(MicroOpField.rs1),
+      ReadRegisterMicroOp(MicroOpField.rs2),
+      TlbFenceMicroOp(),
+      TlbInvalidateMicroOp(
+        addrField: MicroOpField.rs1,
+        asidField: MicroOpField.rs2,
+      ),
+      UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+    ],
+  ),
+]);

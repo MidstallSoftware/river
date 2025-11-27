@@ -130,18 +130,26 @@ class RiverCore {
   }) : mxlen = Mxlen.mxlen_64;
 
   String? get implementsName {
-    String value = "";
-    for (final ext in extensions) {
-      if (ext.name != null && value.length == 0) {
-        value += ext.name!;
-      } else if (ext.key != null) {
-        value += ext.key!;
-      } else {
-        return null;
-      }
+    final hasI = extensions.any((e) => e.key == 'I');
+    final hasE = extensions.any((e) => e.key == 'E');
+
+    if (!hasI && !hasE) {
+      return null;
     }
 
-    return value;
+    final baseLetter = hasE ? 'E' : 'I';
+    final base = 'RV${mxlen.size}$baseLetter';
+
+    final buf = StringBuffer(base);
+
+    for (final ext in extensions) {
+      final key = ext.key;
+      if (key == null) continue;
+      if (key == baseLetter) continue;
+      buf.write(key);
+    }
+
+    return buf.toString();
   }
 
   @override

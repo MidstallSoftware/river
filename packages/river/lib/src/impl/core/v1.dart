@@ -17,5 +17,8 @@ class RiverCoreV1 extends RiverCore {
     required super.interrupts,
     required super.clock,
     super.l1cache,
-  }) : super(mxlen: Mxlen.mxlen_32, extensions: const [rv32i, rvc]);
+  }) : super(
+         mxlen: Mxlen.mxlen_32,
+         extensions: const [rvc, rv32Zicsr, rv32BasePrivilege, rv32i],
+       );
 }
