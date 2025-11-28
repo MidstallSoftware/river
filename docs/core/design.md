@@ -22,12 +22,12 @@ This allows for a wide variety of applications and a modular design.
     - Intended to run Linux
     - Scalar
 - RC1.f - River Core v1 *full*
-    - RVA23
+    - RV64GC
     - 64-bit River Core
     - Intended to run Linux
     - Scalar
 - RC1.ma - River Core v1 *macro*
-    - RVA23
+    - RV64GC
     - 64-bit River Core
     - Intended to run Linux
     - Superscalar
