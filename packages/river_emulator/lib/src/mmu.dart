@@ -221,6 +221,63 @@ class MmuEmulator {
     throw TrapException(Trap.storeAccess, addr);
   }
 
+  int load(
+    int addr,
+    MicroOpMemSize size, {
+    PrivilegeMode privilege = PrivilegeMode.machine,
+    bool pageTranslate = true,
+    bool sum = false,
+    bool mxr = false,
+  }) {
+    final raw = read(
+      addr,
+      privilege: privilege,
+      pageTranslate: pageTranslate,
+      sum: sum,
+      mxr: mxr,
+    );
+
+    switch (size) {
+      case MicroOpMemSize.byte:
+        return raw & 0xFF;
+
+      case MicroOpMemSize.half:
+        return raw & 0xFFFF;
+
+      case MicroOpMemSize.word:
+        return raw & 0xFFFFFFFF;
+
+      case MicroOpMemSize.dword:
+        return raw;
+    }
+  }
+
+  void store(
+    int addr,
+    int value,
+    MicroOpMemSize size, {
+    PrivilegeMode privilege = PrivilegeMode.machine,
+    bool pageTranslate = true,
+    bool sum = false,
+    bool mxr = false,
+  }) {
+    final masked = switch (size) {
+      MicroOpMemSize.byte => value & 0xFF,
+      MicroOpMemSize.half => value & 0xFFFF,
+      MicroOpMemSize.word => value & 0xFFFFFFFF,
+      MicroOpMemSize.dword => value,
+    };
+
+    write(
+      addr,
+      masked,
+      privilege: privilege,
+      pageTranslate: pageTranslate,
+      sum: sum,
+      mxr: mxr,
+    );
+  }
+
   @override
   String toString() =>
       'MmuEmulator(config: $config, devices: $devices, pagingEnabled: $pagingEnabled, pageTable: $pageTable)';

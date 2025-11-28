@@ -55,6 +55,8 @@ class RiverCoreEmulatorState {
         return alu;
       case MicroOpSource.rs1:
         return rs1;
+      case MicroOpSource.rd:
+        return rd;
       default:
         throw 'Invalid source $source';
     }
@@ -139,6 +141,9 @@ class RiverCoreEmulator {
   UnmodifiableListView<InterruptControllerEmulator> get interrupts =>
       UnmodifiableListView(_interrupts);
 
+  UnmodifiableListView<int> get reservationSet =>
+      UnmodifiableListView(_reservationSet);
+
   final MmuEmulator mmu;
 
   RiverCoreEmulator(
@@ -157,6 +162,8 @@ class RiverCoreEmulator {
            .map((config) => InterruptControllerEmulator(config))
            .toList(),
        idle = false;
+
+  void clearReservationSet() => _reservationSet.clear();
 
   void reset() {
     mode = PrivilegeMode.machine;
@@ -475,7 +482,6 @@ class RiverCoreEmulator {
               state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
               break;
             }
-
           case MicroOpAluFunct.mulhsu:
             {
               final xlen = config.mxlen.size;
@@ -486,7 +492,6 @@ class RiverCoreEmulator {
               state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
               break;
             }
-
           case MicroOpAluFunct.mulhu:
             {
               final xlen = config.mxlen.size;
@@ -497,7 +502,6 @@ class RiverCoreEmulator {
               state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
               break;
             }
-
           case MicroOpAluFunct.div:
             {
               final xlen = config.mxlen.size;
@@ -516,7 +520,6 @@ class RiverCoreEmulator {
               }
               break;
             }
-
           case MicroOpAluFunct.divu:
             {
               final xlen = config.mxlen.size;
@@ -530,7 +533,6 @@ class RiverCoreEmulator {
               }
               break;
             }
-
           case MicroOpAluFunct.rem:
             {
               final xlen = config.mxlen.size;
@@ -549,7 +551,6 @@ class RiverCoreEmulator {
               }
               break;
             }
-
           case MicroOpAluFunct.remu:
             {
               final xlen = config.mxlen.size;
@@ -758,6 +759,166 @@ class RiverCoreEmulator {
           state.writeField(mop.field, value);
         } else {
           state.clearField(mop.field);
+        }
+      } else if (mop is LoadReservedMicroOp) {
+        final base = state.readField(mop.base);
+        final addr = base + state.imm;
+
+        if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
+          state.pc = trap(state.pc, TrapException(Trap.misalignedLoad, addr));
+          return state;
+        }
+
+        try {
+          final loaded = read(addr);
+
+          final value = loaded.toSigned(mop.size.bits);
+
+          final rd = Register.values[state.readField(mop.dest)];
+          xregs[rd] = value;
+
+          final phys = translate(addr, MemoryAccess.read);
+          _reservationSet
+            ..clear()
+            ..add(phys);
+        } on TrapException catch (e) {
+          state.pc = trap(state.pc, e);
+          return state;
+        }
+      } else if (mop is StoreConditionalMicroOp) {
+        final base = state.readField(mop.base);
+        final addr = base + state.imm;
+
+        if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
+          state.pc = trap(state.pc, TrapException(Trap.misalignedStore, addr));
+          return state;
+        }
+
+        final srcValue = state.readField(mop.src);
+
+        try {
+          final phys = translate(addr, MemoryAccess.write);
+
+          final hasReservation =
+              _reservationSet.isNotEmpty && _reservationSet.contains(phys);
+
+          int result;
+
+          if (hasReservation) {
+            final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+            final mxr = ((mstatus >> 19) & 1) != 0;
+            final sum = ((mstatus >> 18) & 1) != 0;
+
+            mmu.write(
+              phys,
+              srcValue.toUnsigned(mop.size.bits),
+              pageTranslate: false,
+              sum: sum,
+              mxr: mxr,
+            );
+
+            result = 0;
+            _reservationSet.clear();
+          } else {
+            result = 1;
+            _reservationSet.clear();
+          }
+
+          final rdIndex = state.readField(mop.dest);
+          final rdReg = Register.values[rdIndex];
+          if (rdReg != Register.x0) {
+            xregs[rdReg] = result;
+          }
+        } on TrapException catch (e) {
+          state.pc = trap(state.pc, e);
+          return state;
+        }
+      } else if (mop is AtomicMemoryMicroOp) {
+        final base = state.readField(mop.base);
+        final addr = base + state.imm;
+
+        if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
+          state.pc = trap(state.pc, TrapException(Trap.misalignedLoad, addr));
+          return state;
+        }
+
+        final srcRaw = state.readField(mop.src);
+
+        try {
+          final phys = translate(addr, MemoryAccess.read);
+
+          final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+          final mxr = ((mstatus >> 19) & 1) != 0;
+          final sum = ((mstatus >> 18) & 1) != 0;
+
+          final loaded = mmu.read(
+            phys,
+            pageTranslate: false,
+            sum: sum,
+            mxr: mxr,
+          );
+
+          final mask = (mop.size.bits == 64) ? -1 : ((1 << mop.size.bits) - 1);
+
+          final oldVal = loaded & mask;
+          final srcVal = srcRaw & mask;
+
+          int newVal;
+
+          int sx(int v) {
+            return v.toSigned(mop.size.bits);
+          }
+
+          switch (mop.funct) {
+            case MicroOpAtomicFunct.add:
+              newVal = (sx(oldVal) + sx(srcVal)) & mask;
+              break;
+            case MicroOpAtomicFunct.swap:
+              newVal = srcVal;
+              break;
+            case MicroOpAtomicFunct.xor:
+              newVal = (oldVal ^ srcVal) & mask;
+              break;
+            case MicroOpAtomicFunct.and:
+              newVal = (oldVal & srcVal) & mask;
+              break;
+            case MicroOpAtomicFunct.or:
+              newVal = (oldVal | srcVal) & mask;
+              break;
+            case MicroOpAtomicFunct.min:
+              newVal = sx(srcVal) < sx(oldVal) ? srcVal : oldVal;
+              break;
+            case MicroOpAtomicFunct.max:
+              newVal = sx(srcVal) > sx(oldVal) ? srcVal : oldVal;
+              break;
+            case MicroOpAtomicFunct.minu:
+              newVal =
+                  srcVal.toUnsigned(mop.size.bits) <
+                      oldVal.toUnsigned(mop.size.bits)
+                  ? srcVal
+                  : oldVal;
+              break;
+            case MicroOpAtomicFunct.maxu:
+              newVal =
+                  srcVal.toUnsigned(mop.size.bits) >
+                      oldVal.toUnsigned(mop.size.bits)
+                  ? srcVal
+                  : oldVal;
+              break;
+          }
+
+          mmu.write(phys, newVal, pageTranslate: false, sum: sum, mxr: mxr);
+
+          final rdIndex = state.readField(mop.dest);
+          final rdReg = Register.values[rdIndex];
+          if (rdReg != Register.x0) {
+            final xlen = config.mxlen.size;
+            final oldXlen = oldVal.toSigned(mop.size.bits).toSigned(xlen);
+            xregs[rdReg] = oldXlen;
+          }
+        } on TrapException catch (e) {
+          state.pc = trap(state.pc, e);
+          return state;
         }
       } else if (mop is TlbFenceMicroOp) {
         // TODO: once MMU has a TLB

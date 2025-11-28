@@ -38,6 +38,10 @@ class SramAccessorEmulator extends DeviceAccessorEmulator {
 
   @override
   void write(int addr, int value, Mxlen mxlen) {
-    // FIXME: write data
+    for (int i = 0; i < mxlen.width; i++) {
+      final byte = (value >> (8 * i)) & 0xFF;
+
+      sram.data[addr + i] = byte;
+    }
   }
 }
