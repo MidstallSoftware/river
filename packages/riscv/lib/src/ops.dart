@@ -29,6 +29,8 @@ enum MicroOpAluFunct {
   remu,
 }
 
+enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }
+
 enum MicroOpSource { alu, mem, imm, rs1, rs2, sp }
 
 enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
@@ -274,6 +276,53 @@ class InterruptHoldMicroOp extends MicroOp {
 
   @override
   String toString() => 'InterruptHoldMicroOp()';
+}
+
+class LoadReservedMicroOp extends MicroOp {
+  final MicroOpField base;
+  final MicroOpField dest;
+  final MicroOpMemSize size;
+
+  const LoadReservedMicroOp(this.base, this.dest, this.size);
+
+  @override
+  String toString() => 'LoadReservedMicroOp($base, $dest, $size)';
+}
+
+class StoreConditionalMicroOp extends MicroOp {
+  final MicroOpField base;
+  final MicroOpField src;
+  final MicroOpField dest;
+  final MicroOpMemSize size;
+
+  const StoreConditionalMicroOp({
+    required this.base,
+    required this.src,
+    required this.dest,
+    required this.size,
+  });
+
+  @override
+  String toString() => 'StoreConditionalMicroOp($base, $src, $dest, $size)';
+}
+
+class AtomicMemoryMicroOp extends MicroOp {
+  final MicroOpAtomicFunct funct;
+  final MicroOpField base;
+  final MicroOpField src;
+  final MicroOpField dest;
+  final MicroOpMemSize size;
+
+  const AtomicMemoryMicroOp({
+    required this.funct,
+    required this.base,
+    required this.src,
+    required this.dest,
+    required this.size,
+  });
+
+  @override
+  String toString() => 'AtomicMemoryMicroOp($funct, $base, $src, $dest, $size)';
 }
 
 class Operation<T extends InstructionType> {
