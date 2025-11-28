@@ -31,7 +31,7 @@ enum MicroOpAluFunct {
 
 enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }
 
-enum MicroOpSource { alu, mem, imm, rs1, rs2, sp }
+enum MicroOpSource { alu, mem, imm, rs1, rs2, sp, rd }
 
 enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
 

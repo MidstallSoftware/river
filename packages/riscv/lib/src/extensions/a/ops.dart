@@ -221,7 +221,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'lr.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x9,
+      funct7: 0x8,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -237,7 +237,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'sc.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0xD,
+      funct7: 0xC,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -255,7 +255,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amoadd.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x01,
+      funct7: 0x0,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -274,7 +274,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amoswap.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x05,
+      funct7: 0x4,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -293,7 +293,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amoxor.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x11,
+      funct7: 0x10,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -312,7 +312,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amoand.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x21,
+      funct7: 0x30,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -331,7 +331,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amoor.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x31,
+      funct7: 0x20,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -350,7 +350,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amomin.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x41,
+      funct7: 0x40,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -369,7 +369,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amomax.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x51,
+      funct7: 0x50,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -388,7 +388,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amominu.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x61,
+      funct7: 0x60,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
@@ -407,7 +407,7 @@ const rv64Atomics = RiscVExtension(
       mnemonic: 'amomaxu.d',
       opcode: 0x2F,
       funct3: 0x3,
-      funct7: 0x71,
+      funct7: 0x70,
       decode: RTypeDecode.decode,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
