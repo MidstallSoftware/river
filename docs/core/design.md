@@ -12,22 +12,26 @@ This allows for a wide variety of applications and a modular design.
     - Intended to run RTOS
     - Scalar
 - RC1.mi - River Core v1 *micro*
-    - RV32IMAC
+    - RV32IMAC + Zicsr
+    - Supervisor & user modes
     - 32-bit River Core
     - Intended to run Linux
     - Scalar
 - RC1.s - River Core v1 *small*
-    - RV64IMAC
+    - RV64IMAC + Zicsr
+    - Supervisor & user modes
     - 64-bit River Core
     - Intended to run Linux
     - Scalar
 - RC1.f - River Core v1 *full*
-    - RV64GC
+    - RV64GC + Zicsr
+    - Supervisor & user modes
     - 64-bit River Core
     - Intended to run Linux
     - Scalar
 - RC1.ma - River Core v1 *macro*
-    - RV64GC
+    - RV64GC + Zicsr
+    - Supervisor & user modes
     - 64-bit River Core
     - Intended to run Linux
     - Superscalar
