@@ -20,6 +20,13 @@ enum MicroOpAluFunct {
   slt,
   sltu,
   masked,
+  mulh,
+  mulhsu,
+  mulhu,
+  div,
+  divu,
+  rem,
+  remu,
 }
 
 enum MicroOpSource { alu, mem, imm, rs1, rs2, sp }

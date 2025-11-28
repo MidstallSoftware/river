@@ -465,6 +465,104 @@ class RiverCoreEmulator {
           case MicroOpAluFunct.masked:
             state.alu = a & ~b;
             break;
+          case MicroOpAluFunct.mulh:
+            {
+              final xlen = config.mxlen.size;
+              final aS = a.toSigned(xlen);
+              final bS = b.toSigned(xlen);
+              final wide = BigInt.from(aS) * BigInt.from(bS);
+              final high = wide >> xlen;
+              state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
+              break;
+            }
+
+          case MicroOpAluFunct.mulhsu:
+            {
+              final xlen = config.mxlen.size;
+              final aS = a.toSigned(xlen);
+              final bU = b.toUnsigned(xlen);
+              final wide = BigInt.from(aS) * BigInt.from(bU);
+              final high = wide >> xlen;
+              state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
+              break;
+            }
+
+          case MicroOpAluFunct.mulhu:
+            {
+              final xlen = config.mxlen.size;
+              final aU = a.toUnsigned(xlen);
+              final bU = b.toUnsigned(xlen);
+              final wide = BigInt.from(aU) * BigInt.from(bU);
+              final high = wide >> xlen;
+              state.alu = (high & ((BigInt.one << xlen) - BigInt.one)).toInt();
+              break;
+            }
+
+          case MicroOpAluFunct.div:
+            {
+              final xlen = config.mxlen.size;
+              final dividend = a.toSigned(xlen);
+              final divisor = b.toSigned(xlen);
+
+              if (divisor == 0) {
+                state.alu = -1;
+              } else {
+                final intMin = 1 << (xlen - 1);
+                if (dividend == intMin && divisor == -1) {
+                  state.alu = intMin;
+                } else {
+                  state.alu = (dividend ~/ divisor);
+                }
+              }
+              break;
+            }
+
+          case MicroOpAluFunct.divu:
+            {
+              final xlen = config.mxlen.size;
+              final dividend = a.toUnsigned(xlen);
+              final divisor = b.toUnsigned(xlen);
+
+              if (divisor == 0) {
+                state.alu = (1 << xlen) - 1;
+              } else {
+                state.alu = (dividend ~/ divisor);
+              }
+              break;
+            }
+
+          case MicroOpAluFunct.rem:
+            {
+              final xlen = config.mxlen.size;
+              final dividend = a.toSigned(xlen);
+              final divisor = b.toSigned(xlen);
+
+              if (divisor == 0) {
+                state.alu = dividend;
+              } else {
+                final intMin = 1 << (xlen - 1);
+                if (dividend == intMin && divisor == -1) {
+                  state.alu = 0;
+                } else {
+                  state.alu = (dividend % divisor);
+                }
+              }
+              break;
+            }
+
+          case MicroOpAluFunct.remu:
+            {
+              final xlen = config.mxlen.size;
+              final dividend = a.toUnsigned(xlen);
+              final divisor = b.toUnsigned(xlen);
+
+              if (divisor == 0) {
+                state.alu = dividend;
+              } else {
+                state.alu = (dividend % divisor);
+              }
+              break;
+            }
           default:
             throw 'Invalid ALU function ${mop.funct}';
         }
