@@ -12,12 +12,12 @@ This allows for a wide variety of applications and a modular design.
     - Intended to run RTOS
     - Scalar
 - RC1.mi - River Core v1 *micro*
-    - RV32IM
+    - RV32IMAC
     - 32-bit River Core
     - Intended to run Linux
     - Scalar
 - RC1.s - River Core v1 *small*
-    - RV64IM
+    - RV64IMAC
     - 64-bit River Core
     - Intended to run Linux
     - Scalar
