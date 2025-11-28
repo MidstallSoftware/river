@@ -133,7 +133,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.mulw, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.mul, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
