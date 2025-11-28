@@ -19,6 +19,32 @@ class RiverCoreV1 extends RiverCore {
     super.l1cache,
   }) : super(
          mxlen: Mxlen.mxlen_32,
-         extensions: const [rvc, rv32Zicsr, rv32BasePrivilege, rv32i],
+         extensions: const [rvc, rv32i],
+         hasSupervisor: false,
+         hasUser: false,
+       );
+
+  /// RC1.mi - River Core V1 micro
+  ///
+  /// A RV32IMAC core using the River design.
+  const RiverCoreV1.micro({
+    super.vendorId = 0,
+    super.archId = 0,
+    super.hartId = 0,
+    super.resetVector = 0,
+    required super.mmu,
+    required super.interrupts,
+    required super.clock,
+    super.l1cache,
+  }) : super(
+         mxlen: Mxlen.mxlen_32,
+         extensions: const [
+           rvc,
+           rv32Zicsr,
+           rv32BasePrivilege,
+           rv32M,
+           rv32Atomics,
+           rv32i,
+         ],
        );
 }
