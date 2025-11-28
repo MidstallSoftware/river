@@ -176,4 +176,14 @@ void main() {
       ),
     );
   });
+
+  group('RC1.s', () {
+    defineCoreTest(
+      const RiverCoreV1.small(
+        mmu: Mmu(mxlen: Mxlen.mxlen_64, blocks: []),
+        interrupts: [],
+        clock: ClockConfig(name: 'test', baseFreqHz: 1000),
+      ),
+    );
+  });
 }
