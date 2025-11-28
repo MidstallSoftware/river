@@ -121,3 +121,81 @@ const rv32M = RiscVExtension(
   key: 'M',
   mask: 1 << 12,
 );
+
+const rv64M = RiscVExtension(
+  [
+    Operation<RType>(
+      mnemonic: 'mulw',
+      opcode: 0x3B,
+      funct3: 0x0,
+      funct7: 0x01,
+      decode: RTypeDecode.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.mulw, MicroOpField.rs1, MicroOpField.rs2),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<RType>(
+      mnemonic: 'divw',
+      opcode: 0x3B,
+      funct3: 0x4,
+      funct7: 0x01,
+      decode: RTypeDecode.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.div, MicroOpField.rs1, MicroOpField.rs2),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<RType>(
+      mnemonic: 'divuw',
+      opcode: 0x3B,
+      funct3: 0x5,
+      funct7: 0x01,
+      decode: RTypeDecode.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.divu, MicroOpField.rs1, MicroOpField.rs2),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<RType>(
+      mnemonic: 'remw',
+      opcode: 0x3B,
+      funct3: 0x6,
+      funct7: 0x01,
+      decode: RTypeDecode.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.rem, MicroOpField.rs1, MicroOpField.rs2),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+    Operation<RType>(
+      mnemonic: 'remuw',
+      opcode: 0x3B,
+      funct3: 0x7,
+      funct7: 0x01,
+      decode: RTypeDecode.decode,
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.remu, MicroOpField.rs1, MicroOpField.rs2),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 4),
+      ],
+    ),
+  ],
+  name: 'M',
+  key: 'M',
+  mask: 1 << 12,
+);
