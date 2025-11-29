@@ -690,28 +690,6 @@ class RiverCoreEmulator {
           }),
         );
         return state;
-      } else if (mop is BranchIfNonZeroMicroOp) {
-        final condition = state.readField(mop.field);
-
-        final value = mop.offsetField != null
-            ? state.readField(mop.offsetField!)
-            : mop.offset;
-
-        if (condition != 0) {
-          state.pc += value;
-          return state;
-        }
-      } else if (mop is BranchIfZeroMicroOp) {
-        final condition = state.readField(mop.field);
-
-        final value = mop.offsetField != null
-            ? state.readField(mop.offsetField!)
-            : mop.offset;
-
-        if (condition == 0) {
-          state.pc += value;
-          return state;
-        }
       } else if (mop is BranchIfMicroOp) {
         final target = state.readSource(mop.target);
 

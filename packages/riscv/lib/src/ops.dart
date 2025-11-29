@@ -238,36 +238,6 @@ class ReturnMicroOp extends MicroOp {
   String toString() => 'ReturnMicroOp($mode)';
 }
 
-class BranchIfZeroMicroOp extends MicroOp {
-  final MicroOpField field;
-  final MicroOpField? offsetField;
-  final int offset;
-
-  const BranchIfZeroMicroOp({
-    required this.field,
-    this.offsetField,
-    this.offset = 0,
-  });
-
-  @override
-  String toString() => 'BranchIfZeroMicroOp($field, $offsetField, $offset)';
-}
-
-class BranchIfNonZeroMicroOp extends MicroOp {
-  final MicroOpField field;
-  final MicroOpField? offsetField;
-  final int offset;
-
-  const BranchIfNonZeroMicroOp({
-    required this.field,
-    this.offsetField,
-    this.offset = 0,
-  });
-
-  @override
-  String toString() => 'BranchIfNonZeroMicroOp($field, $offsetField, $offset)';
-}
-
 class WriteLinkRegisterMicroOp extends MicroOp {
   final MicroOpLink link;
   final int pcOffset;

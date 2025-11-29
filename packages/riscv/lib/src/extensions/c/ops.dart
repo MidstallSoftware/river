@@ -269,8 +269,9 @@ const rvc = RiscVExtension(
       opcodeRange: CompressedInstruction.opcodeRange,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1, offset: 8),
-        BranchIfZeroMicroOp(
-          field: MicroOpField.rs1,
+        BranchIfMicroOp(
+          MicroOpCondition.eq,
+          MicroOpSource.rs1,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 2),
@@ -283,8 +284,9 @@ const rvc = RiscVExtension(
       decode: CompressedBTypeDecode.decode,
       opcodeRange: CompressedInstruction.opcodeRange,
       microcode: [
-        BranchIfNonZeroMicroOp(
-          field: MicroOpField.rs1,
+        BranchIfMicroOp(
+          MicroOpCondition.ne,
+          MicroOpSource.rs1,
           offsetField: MicroOpField.imm,
         ),
         UpdatePCMicroOp(MicroOpField.pc, offset: 2),

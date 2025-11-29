@@ -43,7 +43,7 @@ const rv32Zicsr = RiscVExtension(
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
         ReadRegisterMicroOp(MicroOpField.rs1),
-        BranchIfZeroMicroOp(field: MicroOpField.rs1, offset: 2),
+        BranchIfMicroOp(MicroOpCondition.eq, MicroOpSource.rs1, offset: 2),
         AluMicroOp(MicroOpAluFunct.masked, MicroOpField.imm, MicroOpField.rs1),
         ModifyLatchMicroOp(MicroOpField.imm, MicroOpSource.imm, false),
         WriteCsrMicroOp(MicroOpField.imm, MicroOpSource.alu),
