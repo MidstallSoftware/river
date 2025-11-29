@@ -27,6 +27,11 @@ enum MicroOpAluFunct {
   divu,
   rem,
   remu,
+  mulw,
+  divw,
+  divuw,
+  remw,
+  remuw,
 }
 
 enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }

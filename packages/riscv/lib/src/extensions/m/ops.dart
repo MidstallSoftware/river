@@ -133,7 +133,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.mul, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.mulw, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
@@ -147,7 +147,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.div, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.divw, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
@@ -161,7 +161,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.divu, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.divuw, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
@@ -175,7 +175,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.rem, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.remw, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
@@ -189,7 +189,7 @@ const rv64M = RiscVExtension(
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.remu, MicroOpField.rs1, MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.remuw, MicroOpField.rs1, MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],

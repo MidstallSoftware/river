@@ -523,13 +523,17 @@ class RiverCoreEmulator {
           case MicroOpAluFunct.divu:
             {
               final xlen = config.mxlen.size;
-              final dividend = a.toUnsigned(xlen);
-              final divisor = b.toUnsigned(xlen);
 
-              if (divisor == 0) {
-                state.alu = (1 << xlen) - 1;
+              final mask = (BigInt.one << xlen) - BigInt.one;
+
+              final dividend = BigInt.from(a) & mask;
+              final divisor = BigInt.from(b) & mask;
+
+              if (divisor == BigInt.zero) {
+                state.alu = mask.toInt();
               } else {
-                state.alu = (dividend ~/ divisor);
+                final q = dividend ~/ divisor;
+                state.alu = (q & mask).toInt();
               }
               break;
             }
@@ -546,7 +550,9 @@ class RiverCoreEmulator {
                 if (dividend == intMin && divisor == -1) {
                   state.alu = 0;
                 } else {
-                  state.alu = (dividend % divisor);
+                  final q = dividend ~/ divisor;
+                  final r = dividend - q * divisor;
+                  state.alu = r;
                 }
               }
               break;
@@ -561,6 +567,67 @@ class RiverCoreEmulator {
                 state.alu = dividend;
               } else {
                 state.alu = (dividend % divisor);
+              }
+              break;
+            }
+          case MicroOpAluFunct.mulw:
+            {
+              final prod = (a.toSigned(32) * b.toSigned(32)) & 0xFFFFFFFF;
+              state.alu = prod.toSigned(32);
+              break;
+            }
+          case MicroOpAluFunct.divw:
+            {
+              final dividend = a.toSigned(32);
+              final divisor = b.toSigned(32);
+
+              if (divisor == 0) {
+                state.alu = -1;
+              } else if (dividend == -0x80000000 && divisor == -1) {
+                state.alu = -0x80000000;
+              } else {
+                state.alu = (dividend ~/ divisor).toSigned(32);
+              }
+              break;
+            }
+          case MicroOpAluFunct.divuw:
+            {
+              final dividend = a.toUnsigned(32);
+              final divisor = b.toUnsigned(32);
+
+              if (divisor == 0) {
+                state.alu = 0xFFFFFFFF;
+              } else {
+                final q = dividend ~/ divisor;
+                state.alu = q.toUnsigned(32);
+              }
+              break;
+            }
+          case MicroOpAluFunct.remw:
+            {
+              final dividend = a.toSigned(32);
+              final divisor = b.toSigned(32);
+
+              if (divisor == 0) {
+                state.alu = dividend.toSigned(32);
+              } else if (dividend == -0x80000000 && divisor == -1) {
+                state.alu = 0;
+              } else {
+                final q = dividend ~/ divisor;
+                state.alu = (dividend - q * divisor).toSigned(32);
+              }
+              break;
+            }
+          case MicroOpAluFunct.remuw:
+            {
+              final dividend = a.toUnsigned(32);
+              final divisor = b.toUnsigned(32);
+
+              if (divisor == 0) {
+                state.alu = dividend;
+              } else {
+                final r = dividend % divisor;
+                state.alu = r.toUnsigned(32);
               }
               break;
             }
