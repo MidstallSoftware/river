@@ -3,6 +3,17 @@ import 'package:test/test.dart';
 
 void main() {
   group('Decode RV32I', () {
+    test('Decode map', () {
+      final lookup = <int, String>{0x002081B3: 'add', 0x00A08293: 'addi'};
+
+      for (final entry in lookup.entries) {
+        expect(
+          Microcode.lookupDecodeMap(entry.key, rv32i.decodeMap)!.mnemonic,
+          equals(entry.value),
+        );
+      }
+    });
+
     test('R-type: add x3, x1, x2', () {
       const instr = 0x002081B3;
       final decoded = InstructionDecode.decode(instr);

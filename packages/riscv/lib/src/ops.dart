@@ -323,6 +323,31 @@ class SetFieldMicroOp extends MicroOp {
   String toString() => 'SetFieldMicroOp($field, $value)';
 }
 
+class OperationDecodePattern {
+  final int mask;
+  final int value;
+  final int opIndex;
+  final Set<String> nonZeroFields;
+
+  const OperationDecodePattern(
+    this.mask,
+    this.value,
+    this.opIndex,
+    this.nonZeroFields,
+  );
+
+  OperationDecodePattern copyWith({int? opIndex}) => OperationDecodePattern(
+    mask,
+    value,
+    opIndex ?? this.opIndex,
+    nonZeroFields,
+  );
+
+  @override
+  String toString() =>
+      'OperationDecodePattern($mask, $value, $opIndex, $nonZeroFields)';
+}
+
 class Operation<T extends InstructionType> {
   final String mnemonic;
   final int opcode;
@@ -355,6 +380,50 @@ class Operation<T extends InstructionType> {
     this.allowedLevels = PrivilegeMode.values,
     this.microcode = const [],
   });
+
+  OperationDecodePattern decodePattern(int index) {
+    int mask = 0;
+    int value = 0;
+
+    void bind(BitRange range, int? fieldValue, {bool nonZero = false}) {
+      if (fieldValue == null && !nonZero) return;
+
+      final shiftedMask = range.mask << range.start;
+      mask |= shiftedMask;
+
+      if (fieldValue != null) value |= (fieldValue << range.start);
+    }
+
+    bind(struct.mapping['opcode']!, opcode);
+
+    if (funct2 != null) bind(struct.mapping['funct2']!, funct2);
+
+    if (funct3 != null && struct.mapping['funct3'] != null)
+      bind(struct.mapping['funct3']!, funct3);
+
+    if (funct4 != null) bind(struct.mapping['funct4']!, funct4);
+
+    if (funct6 != null) bind(struct.mapping['funct6']!, funct6);
+
+    if (funct7 != null && struct.mapping['funct7'] != null)
+      bind(struct.mapping['funct7']!, funct7);
+
+    if (funct12 != null) bind(struct.mapping['funct12']!, funct12);
+
+    final nz = <String>{};
+    for (final f in nonZeroFields) {
+      final r = struct.mapping[f]!;
+      mask |= (r.mask << r.start);
+      nz.add(f);
+    }
+
+    for (final f in zeroFields) {
+      final r = struct.mapping[f]!;
+      mask |= (r.mask << r.start);
+    }
+
+    return OperationDecodePattern(mask, value, index, nz);
+  }
 
   bool _mapMatch(Map<String, int> map) {
     if (map['opcode'] != opcode) return false;
@@ -419,6 +488,69 @@ class RiscVExtension {
     return null;
   }
 
+  Iterable<OperationDecodePattern> get decodePattern => operations
+      .asMap()
+      .entries
+      .map((entry) => entry.value.decodePattern(entry.key));
+
+  Map<OperationDecodePattern, Operation<InstructionType>> get decodeMap {
+    // NOTE: we probably should loop through the operations and patterns to ensure coherency.
+    return Map.fromIterables(decodePattern, operations);
+  }
+
   @override
   String toString() => name ?? 'RiscVExtension($operations, mask: $mask)';
+}
+
+class Microcode {
+  /// Builds the operations list
+  ///
+  /// This generates a list of all the operations.
+  static List<Operation<InstructionType>> buildOperations(
+    List<RiscVExtension> extensions,
+  ) {
+    List<Operation<InstructionType>> list = [];
+    for (final ext in extensions) list.addAll(ext.operations);
+    return list;
+  }
+
+  /// Builds a decode pattern list
+  ///
+  /// This generates a list of all the operations decode patterns.
+  /// It is necessary for the microcode selection circuitry.
+  static List<OperationDecodePattern> buildDecodePattern(
+    List<RiscVExtension> extensions,
+  ) {
+    List<OperationDecodePattern> list = [];
+    for (final ext in extensions) {
+      final patterns = ext.decodePattern;
+
+      for (final pattern in patterns) {
+        list.add(pattern.copyWith(opIndex: list.length));
+      }
+    }
+    return list;
+  }
+
+  /// Builds the decode map
+  ///
+  /// This generates the decode map which resolves decode patterns to operations.
+  static Map<OperationDecodePattern, Operation<InstructionType>> buildDecodeMap(
+    List<RiscVExtension> extensions,
+  ) {
+    final patterns = buildDecodePattern(extensions);
+    final operations = buildOperations(extensions);
+    // NOTE: we probably should loop through the operations and patterns to ensure coherency.
+    return Map.fromIterables(patterns, operations);
+  }
+
+  static Operation<InstructionType>? lookupDecodeMap(
+    int instr,
+    Map<OperationDecodePattern, Operation<InstructionType>> map,
+  ) {
+    for (final entry in map.entries) {
+      if ((instr & entry.key.mask) == entry.key.value) return entry.value;
+    }
+    return null;
+  }
 }
