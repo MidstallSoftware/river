@@ -4,13 +4,11 @@ import 'package:test/test.dart';
 void main() {
   group('Decode RV32I', () {
     test('Decode map', () {
+      final mc = Microcode(rv32i.decodeMap);
       final lookup = <int, String>{0x002081B3: 'add', 0x00A08293: 'addi'};
 
       for (final entry in lookup.entries) {
-        expect(
-          Microcode.lookupDecodeMap(entry.key, rv32i.decodeMap)!.mnemonic,
-          equals(entry.value),
-        );
+        expect(mc.lookup(entry.key)!.mnemonic, equals(entry.value));
       }
     });
 

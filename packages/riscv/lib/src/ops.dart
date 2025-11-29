@@ -503,6 +503,23 @@ class RiscVExtension {
 }
 
 class Microcode {
+  final Map<OperationDecodePattern, Operation<InstructionType>> map;
+
+  const Microcode(this.map);
+
+  Operation<InstructionType>? lookup(int instr) {
+    for (final entry in map.entries) {
+      if ((instr & entry.key.mask) == entry.key.value) return entry.value;
+    }
+    return null;
+  }
+
+  InstructionType? decode(int instr) {
+    final op = lookup(instr);
+    if (op == null) return null;
+    return op!.decode(instr);
+  }
+
   /// Builds the operations list
   ///
   /// This generates a list of all the operations.
@@ -542,15 +559,5 @@ class Microcode {
     final operations = buildOperations(extensions);
     // NOTE: we probably should loop through the operations and patterns to ensure coherency.
     return Map.fromIterables(patterns, operations);
-  }
-
-  static Operation<InstructionType>? lookupDecodeMap(
-    int instr,
-    Map<OperationDecodePattern, Operation<InstructionType>> map,
-  ) {
-    for (final entry in map.entries) {
-      if ((instr & entry.key.mask) == entry.key.value) return entry.value;
-    }
-    return null;
   }
 }
