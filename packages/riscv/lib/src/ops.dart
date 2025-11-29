@@ -302,11 +302,15 @@ class AtomicMemoryMicroOp extends MicroOp {
   String toString() => 'AtomicMemoryMicroOp($funct, $base, $src, $dest, $size)';
 }
 
-class ValidateImmediateNonZeroMicroOp extends MicroOp {
-  const ValidateImmediateNonZeroMicroOp();
+class ValidateFieldMicroOp extends MicroOp {
+  final MicroOpCondition condition;
+  final MicroOpField field;
+  final int value;
+
+  const ValidateFieldMicroOp(this.condition, this.field, this.value);
 
   @override
-  String toString() => 'ValidateImmediateNonZeroMicroOp()';
+  String toString() => 'ValidateFieldMicroOp($condition, $field, $value)';
 }
 
 class SetFieldMicroOp extends MicroOp {

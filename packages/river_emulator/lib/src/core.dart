@@ -981,8 +981,34 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
-      } else if (mop is ValidateImmediateNonZeroMicroOp) {
-        if (state.imm == 0) {
+      } else if (mop is ValidateFieldMicroOp) {
+        final value = state.readField(mop.field);
+        bool valid = true;
+
+        switch (mop.condition) {
+          case MicroOpCondition.eq:
+            valid = value == mop.value;
+            break;
+          case MicroOpCondition.ne:
+            valid = value != mop.value;
+            break;
+          case MicroOpCondition.lt:
+            valid = value < mop.value;
+            break;
+          case MicroOpCondition.gt:
+            valid = value > mop.value;
+            break;
+          case MicroOpCondition.ge:
+            valid = value >= mop.value;
+            break;
+          case MicroOpCondition.le:
+            valid = value <= mop.value;
+            break;
+          default:
+            throw 'Invalid condition: ${mop.condition}';
+        }
+
+        if (!valid) {
           state.pc = trap(state.pc, TrapException.illegalInstruction());
           return state;
         }

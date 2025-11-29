@@ -12,7 +12,7 @@ const rvc = RiscVExtension(
       decode: CompressedWITypeDecode.decode,
       opcodeRange: CompressedInstruction.opcodeRange,
       microcode: [
-        ValidateImmediateNonZeroMicroOp(),
+        ValidateFieldMicroOp(MicroOpCondition.ne, MicroOpField.imm, 0),
         AluMicroOp(MicroOpAluFunct.add, MicroOpField.sp, MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.alu, offset: 8),
         UpdatePCMicroOp(MicroOpField.pc, offset: 2),
