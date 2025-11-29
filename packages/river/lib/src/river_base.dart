@@ -152,6 +152,8 @@ class RiverCore {
     return buf.toString();
   }
 
+  Microcode get microcode => Microcode(Microcode.buildDecodeMap(extensions));
+
   @override
   String toString() =>
       'RiverCore(vendorId: $vendorId, archId: $archId, hartId: $hartId,'

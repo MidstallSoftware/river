@@ -32,12 +32,12 @@ const rvc = RiscVExtension(
         UpdatePCMicroOp(MicroOpField.pc, offset: 2),
       ],
     ),
-    Operation<CompressedAType>(
+    Operation<CompressedBType>(
       mnemonic: 'c.andi',
       opcode: 0x1,
       funct3: 0x7,
-      struct: CompressedAType.STRUCT,
-      constructor: CompressedAType.map,
+      struct: CompressedBType.STRUCT,
+      constructor: CompressedBType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1, offset: 8),
         AluMicroOp(MicroOpAluFunct.and, MicroOpField.rs1, MicroOpField.imm),
@@ -120,31 +120,28 @@ const rvc = RiscVExtension(
       ],
     ),
     Operation<CompressedRType>(
+      mnemonic: 'c.jr',
+      opcode: 0x2,
+      funct4: 0x8,
+      struct: CompressedRType.STRUCT,
+      constructor: CompressedRType.map,
+      zeroFields: ['rs2'],
+      nonZeroFields: ['rs1'],
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1, offset: 0),
+        UpdatePCMicroOp(MicroOpField.rs1, offsetField: MicroOpField.rs1),
+      ],
+    ),
+    Operation<CompressedRType>(
       mnemonic: 'c.mv',
       opcode: 0x2,
       funct4: 0x8,
       struct: CompressedRType.STRUCT,
       constructor: CompressedRType.map,
-      nonZeroFields: ['rs2'],
+      nonZeroFields: ['rs1', 'rs2'],
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs2),
         WriteRegisterMicroOp(MicroOpField.rs1, MicroOpSource.rs2),
-        UpdatePCMicroOp(MicroOpField.pc, offset: 2),
-      ],
-    ),
-    Operation<CompressedRType>(
-      mnemonic: 'c.add',
-      opcode: 0x2,
-      funct4: 0x9,
-      struct: CompressedRType.STRUCT,
-      constructor: CompressedRType.map,
-      nonZeroFields: ['rs1', 'rs2'],
-      microcode: [
-        ReadRegisterMicroOp(MicroOpField.rs1),
-        ReadRegisterMicroOp(MicroOpField.rs2),
-        AluMicroOp(MicroOpAluFunct.add, MicroOpField.rs1, MicroOpField.rs2),
-        ModifyLatchMicroOp(MicroOpField.rs1, MicroOpSource.rs1, false),
-        WriteRegisterMicroOp(MicroOpField.rs1, MicroOpSource.alu),
         UpdatePCMicroOp(MicroOpField.pc, offset: 2),
       ],
     ),
@@ -198,7 +195,7 @@ const rvc = RiscVExtension(
     Operation<CompressedAType>(
       mnemonic: 'c.sub',
       opcode: 0x1,
-      funct3: 0x4,
+      funct6: 0x4,
       struct: CompressedAType.STRUCT,
       constructor: CompressedAType.map,
       microcode: [
@@ -212,7 +209,7 @@ const rvc = RiscVExtension(
     Operation<CompressedAType>(
       mnemonic: 'c.xor',
       opcode: 0x1,
-      funct3: 0x4,
+      funct6: 0x4,
       struct: CompressedAType.STRUCT,
       constructor: CompressedAType.map,
       microcode: [
@@ -226,7 +223,7 @@ const rvc = RiscVExtension(
     Operation<CompressedAType>(
       mnemonic: 'c.or',
       opcode: 0x1,
-      funct3: 0x4,
+      funct6: 0x35,
       struct: CompressedAType.STRUCT,
       constructor: CompressedAType.map,
       microcode: [
@@ -256,7 +253,7 @@ const rvc = RiscVExtension(
       funct3: 0x3,
       struct: CompressedIType.STRUCT,
       constructor: CompressedIType.map,
-      nonZeroFields: ['rs1', 'rd'],
+      nonZeroFields: ['rs1'],
       microcode: [
         SetFieldMicroOp(MicroOpField.rs1, 12),
         AluMicroOp(MicroOpAluFunct.sll, MicroOpField.imm, MicroOpField.rs1),
@@ -309,27 +306,33 @@ const rvc = RiscVExtension(
       ],
     ),
     Operation<CompressedRType>(
-      mnemonic: 'c.jr',
-      opcode: 0x2,
-      funct4: 0x8,
-      struct: CompressedRType.STRUCT,
-      constructor: CompressedRType.map,
-      zeroFields: ['rs2'],
-      microcode: [
-        ReadRegisterMicroOp(MicroOpField.rs1, offset: 0),
-        UpdatePCMicroOp(MicroOpField.rs1, offsetField: MicroOpField.rs1),
-      ],
-    ),
-    Operation<CompressedRType>(
       mnemonic: 'c.jalr',
       opcode: 0x2,
       funct4: 0x9,
       struct: CompressedRType.STRUCT,
       constructor: CompressedRType.map,
+      zeroFields: ['rs2'],
+      nonZeroFields: ['rs1'],
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         WriteLinkRegisterMicroOp(link: MicroOpLink.ra, pcOffset: 2),
         UpdatePCMicroOp(MicroOpField.rs1, offsetField: MicroOpField.rs1),
+      ],
+    ),
+    Operation<CompressedRType>(
+      mnemonic: 'c.add',
+      opcode: 0x2,
+      funct4: 0x9,
+      struct: CompressedRType.STRUCT,
+      constructor: CompressedRType.map,
+      nonZeroFields: ['rs1', 'rs2'],
+      microcode: [
+        ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
+        AluMicroOp(MicroOpAluFunct.add, MicroOpField.rs1, MicroOpField.rs2),
+        ModifyLatchMicroOp(MicroOpField.rs1, MicroOpSource.rs1, false),
+        WriteRegisterMicroOp(MicroOpField.rs1, MicroOpSource.alu),
+        UpdatePCMicroOp(MicroOpField.pc, offset: 2),
       ],
     ),
     Operation<CompressedRType>(
@@ -338,6 +341,7 @@ const rvc = RiscVExtension(
       funct3: 0x4,
       struct: CompressedRType.STRUCT,
       constructor: CompressedRType.map,
+      zeroFields: ['rs1', 'rs2'],
       microcode: [TrapMicroOp.one(Trap.breakpoint)],
     ),
     Operation<CompressedSwspType>(

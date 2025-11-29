@@ -460,19 +460,17 @@ class CompressedLwspType extends InstructionType {
 class CompressedSwspType extends InstructionType {
   final int rs2;
   final int _imm;
-  final int funct3;
 
   const CompressedSwspType({
     required super.opcode,
     required this.rs2,
     required int imm,
-    required this.funct3,
+    required super.funct3,
   }) : _imm = imm;
 
   const CompressedSwspType.map(Map<String, int> map)
     : rs2 = map['rs2']!,
       _imm = map['imm']!,
-      funct3 = map['funct3']!,
       super.map(map);
 
   @override
@@ -490,7 +488,7 @@ class CompressedSwspType extends InstructionType {
     'opcode': opcode,
     'rs2': rs2,
     'imm': _imm,
-    'funct3': funct3,
+    'funct3': funct3!,
   };
 
   static const BitStruct STRUCT = const BitStruct({

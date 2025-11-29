@@ -176,15 +176,7 @@ class RiverCoreEmulator {
     mmu.reset();
   }
 
-  InstructionType? decode(int instr) {
-    for (final ext in config.extensions) {
-      for (final op in ext.operations) {
-        final ir = op.decode(instr);
-        if (ir != null) return ir;
-      }
-    }
-    return null;
-  }
+  InstructionType? decode(int instr) => config.microcode.decode(instr);
 
   Operation? findOperationByInstruction(InstructionType instr) {
     for (final ext in config.extensions) {
@@ -1024,16 +1016,14 @@ class RiverCoreEmulator {
   }
 
   int cycle(int pc, int instr) {
-    for (final ext in config.extensions) {
-      for (final op in ext.operations) {
-        final ir = op.decode(instr);
-        if (ir != null) {
-          // print('$op - $ir');
-          var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
-          state = _innerExecute(state, op);
-          xregs[Register.x2] = state.sp;
-          return state.pc;
-        }
+    final op = config.microcode.lookup(instr);
+    if (op != null) {
+      final ir = op.decode(instr);
+      if (ir != null) {
+        var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
+        state = _innerExecute(state, op);
+        xregs[Register.x2] = state.sp;
+        return state.pc;
       }
     }
 

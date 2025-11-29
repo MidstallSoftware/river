@@ -327,7 +327,7 @@ class OperationDecodePattern {
   final int mask;
   final int value;
   final int opIndex;
-  final Set<String> nonZeroFields;
+  final Map<String, BitRange> nonZeroFields;
 
   const OperationDecodePattern(
     this.mask,
@@ -410,14 +410,27 @@ class Operation<T extends InstructionType> {
 
     if (funct12 != null) bind(struct.mapping['funct12']!, funct12);
 
-    final nz = <String>{};
+    final nz = <String, BitRange>{};
     for (final f in nonZeroFields) {
+      if (!struct.mapping.containsKey(f)) {
+        throw '$mnemonic instruction does not have field $f';
+      }
+
       final r = struct.mapping[f]!;
-      mask |= (r.mask << r.start);
-      nz.add(f);
+
+      final shiftedMask = r.mask << r.start;
+      mask |= shiftedMask;
+
+      final lsbBit = 1 << r.start;
+      value |= lsbBit;
+      nz[f] = r;
     }
 
     for (final f in zeroFields) {
+      if (!struct.mapping.containsKey(f)) {
+        throw '$mnemonic instruction does not have field $f';
+      }
+
       final r = struct.mapping[f]!;
       mask |= (r.mask << r.start);
     }
@@ -509,7 +522,15 @@ class Microcode {
 
   Operation<InstructionType>? lookup(int instr) {
     for (final entry in map.entries) {
-      if ((instr & entry.key.mask) == entry.key.value) return entry.value;
+      final map = entry.value.struct.decode(instr);
+
+      for (final field in entry.key.nonZeroFields.keys) {
+        map[field] = 1;
+      }
+
+      final temp = entry.value.struct.encode(map);
+
+      if ((temp & entry.key.mask) == entry.key.value) return entry.value;
     }
     return null;
   }
