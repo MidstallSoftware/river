@@ -55,6 +55,8 @@ class RiverCoreEmulatorState {
         return alu;
       case MicroOpSource.rs1:
         return rs1;
+      case MicroOpSource.rs2:
+        return rs2;
       case MicroOpSource.rd:
         return rd;
       default:
@@ -124,7 +126,7 @@ class RiverCoreEmulatorState {
 
   @override
   String toString() =>
-      'RiverCoreEmulatorState($pc, $ir, rd: $rd, rs1: $rs1, rs2: $rs2, imm: $imm, alu: $alu, sp: $sp)';
+      'RiverCoreEmulatorState($pc, $ir, rd: $rd, rs1: $rs1, rs2: $rs2, imm: $imm, alu: $alu, sp: $sp, pc: $pc)';
 }
 
 class RiverCoreEmulator {
@@ -205,6 +207,7 @@ class RiverCoreEmulator {
     final op = findOperationByInstruction(instr)!;
     var state = RiverCoreEmulatorState(pc, instr, xregs[Register.x2] ?? 0);
     state = _innerExecute(state, op);
+    xregs[Register.x2] = state.sp;
     return state;
   }
 
@@ -421,14 +424,14 @@ class RiverCoreEmulator {
     for (final mop in op.microcode) {
       if (mop is WriteRegisterMicroOp) {
         final value = state.readSource(mop.source);
-        final reg = Register.values[state.readField(mop.field)];
+        final reg = Register.values[mop.offset + state.readField(mop.field)];
         if (reg == Register.x0) {
           continue;
         }
 
         xregs[reg] = value;
       } else if (mop is ReadRegisterMicroOp) {
-        final reg = Register.values[state.readField(mop.source)];
+        final reg = Register.values[mop.offset + state.readField(mop.source)];
         final value = xregs[reg] ?? 0;
         state.writeField(mop.source, value);
       } else if (mop is AluMicroOp) {
@@ -457,6 +460,7 @@ class RiverCoreEmulator {
             state.alu = a << b;
             break;
           case MicroOpAluFunct.srl:
+          case MicroOpAluFunct.sra:
             state.alu = a >> b;
             break;
           case MicroOpAluFunct.slt:
@@ -686,6 +690,17 @@ class RiverCoreEmulator {
           }),
         );
         return state;
+      } else if (mop is BranchIfNonZeroMicroOp) {
+        final condition = state.readField(mop.field);
+
+        final value = mop.offsetField != null
+            ? state.readField(mop.offsetField!)
+            : mop.offset;
+
+        if (condition != 0) {
+          state.pc += value;
+          return state;
+        }
       } else if (mop is BranchIfZeroMicroOp) {
         final condition = state.readField(mop.field);
 
@@ -695,6 +710,7 @@ class RiverCoreEmulator {
 
         if (condition == 0) {
           state.pc += value;
+          return state;
         }
       } else if (mop is BranchIfMicroOp) {
         final target = state.readSource(mop.target);
@@ -987,6 +1003,13 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
+      } else if (mop is ValidateImmediateNonZeroMicroOp) {
+        if (state.imm == 0) {
+          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          return state;
+        }
+      } else if (mop is SetFieldMicroOp) {
+        state.writeField(mop.field, mop.value);
       } else if (mop is TlbFenceMicroOp) {
         // TODO: once MMU has a TLB
       } else if (mop is TlbInvalidateMicroOp) {
@@ -1016,6 +1039,7 @@ class RiverCoreEmulator {
 
           var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
           state = _innerExecute(state, op);
+          xregs[Register.x2] = state.sp;
           return state.pc;
         }
       }

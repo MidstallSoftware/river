@@ -83,10 +83,12 @@ class WriteCsrMicroOp extends MicroOp {
 
 class ReadRegisterMicroOp extends MicroOp {
   final MicroOpField source;
-  const ReadRegisterMicroOp(this.source);
+  final int offset;
+
+  const ReadRegisterMicroOp(this.source, {this.offset = 0});
 
   @override
-  String toString() => 'ReadRegisterMicroOp($source)';
+  String toString() => 'ReadRegisterMicroOp($source, offset: $offset)';
 }
 
 class WriteRegisterMicroOp extends MicroOp {
@@ -330,39 +332,81 @@ class AtomicMemoryMicroOp extends MicroOp {
   String toString() => 'AtomicMemoryMicroOp($funct, $base, $src, $dest, $size)';
 }
 
+class ValidateImmediateNonZeroMicroOp extends MicroOp {
+  const ValidateImmediateNonZeroMicroOp();
+
+  @override
+  String toString() => 'ValidateImmediateNonZeroMicroOp()';
+}
+
+class SetFieldMicroOp extends MicroOp {
+  final MicroOpField field;
+  final int value;
+
+  const SetFieldMicroOp(this.field, this.value);
+
+  @override
+  String toString() => 'SetFieldMicroOp($field, $value)';
+}
+
 class Operation<T extends InstructionType> {
   final String mnemonic;
   final int opcode;
-  final int funct3;
+  final int? funct2;
+  final int? funct3;
+  final int? funct4;
+  final int? funct6;
   final int? funct7;
   final int? funct12;
   final T Function(int instr) decode;
   final BitRange opcodeRange;
+  final List<String> nonZeroFields;
+  final List<String> zeroFields;
   final List<PrivilegeMode> allowedLevels;
   final List<MicroOp> microcode;
 
   const Operation({
     required this.mnemonic,
     required this.opcode,
-    required this.funct3,
+    this.funct2,
+    this.funct3,
+    this.funct4,
+    this.funct6,
     this.funct7,
     this.funct12,
+    this.nonZeroFields = const [],
+    this.zeroFields = const [],
     required this.decode,
     this.opcodeRange = Instruction.opcodeRange,
     this.allowedLevels = PrivilegeMode.values,
     this.microcode = const [],
   });
 
-  bool matches(InstructionType ir) =>
-      ir.matches(opcode, funct3, funct7, funct12);
+  bool matches(InstructionType ir) {
+    if (!ir.matches(opcode, funct2, funct3, funct4, funct6, funct7, funct12))
+      return false;
+
+    final map = ir.toMap();
+
+    for (final field in nonZeroFields) {
+      if (map[field] == 0) return false;
+    }
+
+    for (final field in zeroFields) {
+      if (map[field] != 0) return false;
+    }
+
+    return true;
+  }
 
   bool checkOpcode(int instr) => opcodeRange.decode(instr) == opcode;
 
   @override
   String toString() =>
-      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct3: $funct3,'
-      ' funct7: $funct7, funct12: $funct12, decode: $decode,'
-      ' allowedLevels: $allowedLevels, microcode: $microcode)';
+      'Operation(mnemonic: $mnemonic, opcode: $opcode, funct2: $funct2,'
+      ' funct3: $funct3, funct4: $funct4, funct6: $funct6, funct7: $funct7,'
+      ' funct12: $funct12, decode: $decode, allowedLevels: $allowedLevels,'
+      ' microcode: $microcode)';
 }
 
 class RiscVExtension {

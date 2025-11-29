@@ -107,28 +107,48 @@ enum PagingMode {
 abstract class InstructionType {
   /// The opcode which to execute
   final int opcode;
+  final int? funct2;
   final int? funct3;
+  final int? funct4;
+  final int? funct6;
   final int? funct7;
   final int? funct12;
 
   const InstructionType({
     required this.opcode,
+    this.funct2,
     this.funct3,
+    this.funct4,
+    this.funct6,
     this.funct7,
     this.funct12,
   });
 
   const InstructionType.map(Map<String, int> map)
     : opcode = map['opcode']!,
+      funct2 = map['funct2'],
       funct3 = map['funct3'],
+      funct4 = map['funct4'],
+      funct6 = map['funct6'],
       funct7 = map['funct7'],
       funct12 = map['funct12'];
 
   int get imm => 0;
 
-  bool matches(int bOpcode, int? bFunct3, int? bFunct7, int? bFunct12) =>
+  bool matches(
+    int bOpcode,
+    int? bFunct2,
+    int? bFunct3,
+    int? bFunct4,
+    int? bFunct6,
+    int? bFunct7,
+    int? bFunct12,
+  ) =>
       opcode == bOpcode &&
+      funct2 == bFunct2 &&
       funct3 == bFunct3 &&
+      funct4 == bFunct4 &&
+      funct6 == bFunct6 &&
       funct7 == bFunct7 &&
       funct12 == bFunct12;
 
@@ -136,7 +156,7 @@ abstract class InstructionType {
 
   @override
   String toString() =>
-      '${runtimeType.toString()}(opcode: $opcode, funct3: $funct3, funct7: $funct7, funct12: $funct12)';
+      '${runtimeType.toString()}${toMap().entries.map((entry) => '${entry.key}: ${entry.value}')}';
 }
 
 /// R-Type RISC-V instruction
@@ -389,9 +409,20 @@ class UType extends InstructionType {
   int get imm => shifted_imm << 12;
 
   @override
-  bool matches(int bOpcode, int? bFunct3, int? bFunct7, int? bFunct12) =>
+  bool matches(
+    int bOpcode,
+    int? bFunct2,
+    int? bFunct3,
+    int? bFunct4,
+    int? bFunct6,
+    int? bFunct7,
+    int? bFunct12,
+  ) =>
       opcode == bOpcode &&
+      bFunct2 == null &&
       bFunct3 == null &&
+      bFunct4 == null &&
+      bFunct6 == null &&
       bFunct7 == null &&
       bFunct12 == null;
 
@@ -442,8 +473,15 @@ class JType extends InstructionType {
   }
 
   @override
-  bool matches(int bOpcode, int? _bFunct3, int? _bFunct7, int? _bFunct12) =>
-      opcode == bOpcode;
+  bool matches(
+    int bOpcode,
+    int? _bFunct2,
+    int? _bFunct3,
+    int? _bFunct4,
+    int? _bFunct6,
+    int? _bFunct7,
+    int? _bFunct12,
+  ) => opcode == bOpcode;
 
   @override
   Map<String, int> toMap() => {

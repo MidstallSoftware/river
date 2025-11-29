@@ -47,3 +47,14 @@ class BitStruct {
     return value;
   }
 }
+
+int signExtend(int value, int bits) {
+  final mask = (1 << bits) - 1;
+  value &= mask;
+  final signBit = 1 << (bits - 1);
+  if ((value & signBit) != 0) {
+    return value | ~mask;
+  } else {
+    return value;
+  }
+}

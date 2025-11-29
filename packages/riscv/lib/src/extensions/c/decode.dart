@@ -47,6 +47,21 @@ extension CompressedJTypeDecode on CompressedJType {
       CompressedJType.map(CompressedJType.STRUCT.decode(instr));
 }
 
+extension CompressedLwspTypeDecode on CompressedLwspType {
+  static CompressedLwspType decode(int instr) =>
+      CompressedLwspType.map(CompressedLwspType.STRUCT.decode(instr));
+}
+
+extension CompressedSwspTypeDecode on CompressedSwspType {
+  static CompressedSwspType decode(int instr) =>
+      CompressedSwspType.map(CompressedSwspType.STRUCT.decode(instr));
+}
+
+extension CompressedCbTypeDecode on CompressedCbType {
+  static CompressedCbType decode(int instr) =>
+      CompressedCbType.map(CompressedCbType.STRUCT.decode(instr));
+}
+
 extension CompressedInstructionDecode on CompressedInstruction {
   static CompressedInstruction decode(int instr) {
     final quadrant = BitRange(0, 1).decode(instr);
@@ -105,7 +120,9 @@ extension CompressedInstructionDecode on CompressedInstruction {
       case 0:
         return CompressedInstruction.i(CompressedITypeDecode.decode(instr));
       case 2:
-        return CompressedInstruction.l(CompressedLTypeDecode.decode(instr));
+        return CompressedInstruction.lwsp(
+          CompressedLwspTypeDecode.decode(instr),
+        );
       case 4:
         return CompressedInstruction.i(CompressedITypeDecode.decode(instr));
       case 6:

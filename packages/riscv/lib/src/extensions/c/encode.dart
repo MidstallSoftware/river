@@ -36,6 +36,18 @@ extension CompressedJTypeEncode on CompressedJType {
   int encode() => CompressedJType.STRUCT.encode(toMap());
 }
 
+extension CompressedLwspTypeEncode on CompressedLwspType {
+  int encode() => CompressedLwspType.STRUCT.encode(toMap());
+}
+
+extension CompressedSwspTypeEncode on CompressedSwspType {
+  int encode() => CompressedSwspType.STRUCT.encode(toMap());
+}
+
+extension CompressedCbTypeEncode on CompressedCbType {
+  int encode() => CompressedCbType.STRUCT.encode(toMap());
+}
+
 extension CompressedInstructionEncode on CompressedInstruction {
   int encode() => struct.encode(toMap());
 }
