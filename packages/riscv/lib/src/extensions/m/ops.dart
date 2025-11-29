@@ -9,7 +9,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x0,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -23,7 +24,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x1,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -37,7 +39,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x2,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -51,7 +54,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x3,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -65,7 +69,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x4,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -79,7 +84,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x5,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -93,7 +99,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x6,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -107,7 +114,8 @@ const rv32M = RiscVExtension(
       opcode: 0x33,
       funct3: 0x7,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -129,7 +137,8 @@ const rv64M = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x0,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -143,7 +152,8 @@ const rv64M = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x4,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -157,7 +167,8 @@ const rv64M = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x5,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -171,7 +182,8 @@ const rv64M = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x6,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -185,7 +197,8 @@ const rv64M = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x7,
       funct7: 0x01,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),

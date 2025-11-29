@@ -8,7 +8,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'lwu',
       opcode: 0x03,
       funct3: 0x6,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         MemLoadMicroOp(
@@ -24,7 +25,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'ld',
       opcode: 0x03,
       funct3: 0x3,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         MemLoadMicroOp(
@@ -40,7 +42,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'sd',
       opcode: 0x23,
       funct3: 0x3,
-      decode: STypeDecode.decode,
+      struct: SType.STRUCT,
+      constructor: SType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         MemStoreMicroOp(
@@ -55,7 +58,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'addiw',
       opcode: 0x1B,
       funct3: 0x0,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         AluMicroOp(MicroOpAluFunct.add, MicroOpField.rs1, MicroOpField.imm),
@@ -67,7 +71,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'slliw',
       opcode: 0x1B,
       funct3: 0x1,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         AluMicroOp(MicroOpAluFunct.sll, MicroOpField.rs1, MicroOpField.imm),
@@ -79,7 +84,8 @@ const rv64i = RiscVExtension(
       mnemonic: 'srliw',
       opcode: 0x1B,
       funct3: 0x5,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         AluMicroOp(MicroOpAluFunct.srl, MicroOpField.rs1, MicroOpField.imm),
@@ -92,7 +98,8 @@ const rv64i = RiscVExtension(
       opcode: 0x1B,
       funct3: 0x5,
       funct7: 0x20,
-      decode: ITypeDecode.decode,
+      struct: IType.STRUCT,
+      constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         AluMicroOp(MicroOpAluFunct.sra, MicroOpField.rs1, MicroOpField.imm),
@@ -105,7 +112,8 @@ const rv64i = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x0,
       funct7: 0x00,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -119,7 +127,8 @@ const rv64i = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x0,
       funct7: 0x20,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -133,7 +142,8 @@ const rv64i = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x1,
       funct7: 0x00,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -147,7 +157,8 @@ const rv64i = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x5,
       funct7: 0x00,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -161,7 +172,8 @@ const rv64i = RiscVExtension(
       opcode: 0x3B,
       funct3: 0x5,
       funct7: 0x20,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),

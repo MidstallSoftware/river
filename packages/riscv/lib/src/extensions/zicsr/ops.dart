@@ -9,7 +9,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrw',
       opcode: 0x73,
       funct3: 0x1,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadCsrMicroOp(MicroOpField.imm),
@@ -23,7 +24,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrs',
       opcode: 0x73,
       funct3: 0x2,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
@@ -38,7 +40,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrc',
       opcode: 0x73,
       funct3: 0x3,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
@@ -54,7 +57,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrwi',
       opcode: 0x73,
       funct3: 0x5,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
@@ -67,7 +71,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrsi',
       opcode: 0x73,
       funct3: 0x6,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),
@@ -81,7 +86,8 @@ const rv32Zicsr = RiscVExtension(
       mnemonic: 'csrrci',
       opcode: 0x73,
       funct3: 0x7,
-      decode: SystemITypeDecode.decode,
+      struct: SystemIType.STRUCT,
+      constructor: SystemIType.map,
       microcode: [
         ReadCsrMicroOp(MicroOpField.imm),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm),

@@ -179,13 +179,8 @@ class RiverCoreEmulator {
   InstructionType? decode(int instr) {
     for (final ext in config.extensions) {
       for (final op in ext.operations) {
-        if (op.checkOpcode(instr)) {
-          try {
-            return op.decode(instr);
-          } on DecodeException catch (_exception) {
-            continue;
-          }
-        }
+        final ir = op.decode(instr);
+        if (ir != null) return ir;
       }
     }
     return null;
@@ -1031,16 +1026,9 @@ class RiverCoreEmulator {
   int cycle(int pc, int instr) {
     for (final ext in config.extensions) {
       for (final op in ext.operations) {
-        if (op.checkOpcode(instr)) {
-          InstructionType? ir;
-          try {
-            ir = op.decode(instr);
-          } on DecodeException catch (exception) {
-            continue;
-          }
-
-          if (!op.matches(ir)) continue;
-
+        final ir = op.decode(instr);
+        if (ir != null) {
+          // print('$op - $ir');
           var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
           state = _innerExecute(state, op);
           xregs[Register.x2] = state.sp;

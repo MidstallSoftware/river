@@ -9,7 +9,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x8,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         LoadReservedMicroOp(
@@ -25,7 +26,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0xC,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -43,7 +45,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x0,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -62,7 +65,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x4,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -81,7 +85,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x10,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -100,7 +105,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x20,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -119,7 +125,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x30,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -138,7 +145,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x40,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -157,7 +165,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x50,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -176,7 +185,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x60,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -195,7 +205,8 @@ const rv32Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x2,
       funct7: 0x70,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -222,7 +233,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x8,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         LoadReservedMicroOp(
@@ -238,7 +250,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0xC,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -256,7 +269,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x0,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -275,7 +289,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x4,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -294,7 +309,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x10,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -313,7 +329,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x30,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -332,7 +349,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x20,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -351,7 +369,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x40,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -370,7 +389,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x50,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -389,7 +409,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x60,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),
@@ -408,7 +429,8 @@ const rv64Atomics = RiscVExtension(
       opcode: 0x2F,
       funct3: 0x3,
       funct7: 0x70,
-      decode: RTypeDecode.decode,
+      struct: RType.STRUCT,
+      constructor: RType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
         ReadRegisterMicroOp(MicroOpField.rs2),

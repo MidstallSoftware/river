@@ -332,8 +332,8 @@ class Operation<T extends InstructionType> {
   final int? funct6;
   final int? funct7;
   final int? funct12;
-  final T Function(int instr) decode;
-  final BitRange opcodeRange;
+  final BitStruct struct;
+  final T Function(Map<String, int>) constructor;
   final List<String> nonZeroFields;
   final List<String> zeroFields;
   final List<PrivilegeMode> allowedLevels;
@@ -350,17 +350,20 @@ class Operation<T extends InstructionType> {
     this.funct12,
     this.nonZeroFields = const [],
     this.zeroFields = const [],
-    required this.decode,
-    this.opcodeRange = Instruction.opcodeRange,
+    required this.struct,
+    required this.constructor,
     this.allowedLevels = PrivilegeMode.values,
     this.microcode = const [],
   });
 
-  bool matches(InstructionType ir) {
-    if (!ir.matches(opcode, funct2, funct3, funct4, funct6, funct7, funct12))
-      return false;
-
-    final map = ir.toMap();
+  bool _mapMatch(Map<String, int> map) {
+    if (map['opcode'] != opcode) return false;
+    if (map['funct2'] != funct2) return false;
+    if (map['funct3'] != funct3) return false;
+    if (map['funct4'] != funct4) return false;
+    if (map['funct6'] != funct6) return false;
+    if (map['funct7'] != funct7) return false;
+    if (map['funct12'] != funct12) return false;
 
     for (final field in nonZeroFields) {
       if (map[field] == 0) return false;
@@ -369,11 +372,22 @@ class Operation<T extends InstructionType> {
     for (final field in zeroFields) {
       if (map[field] != 0) return false;
     }
-
     return true;
   }
 
-  bool checkOpcode(int instr) => opcodeRange.decode(instr) == opcode;
+  Map<String, int>? mapDecode(int instr) {
+    final map = struct!.decode(instr);
+    if (!_mapMatch(map)) return null;
+    return map;
+  }
+
+  T? decode(int instr) {
+    final map = mapDecode(instr);
+    if (map == null) return null;
+    return constructor!(map);
+  }
+
+  bool matches(InstructionType instr) => _mapMatch(instr.toMap());
 
   @override
   String toString() =>
