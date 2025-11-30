@@ -32,14 +32,15 @@ void main() {
       });
 
       void writeWord(int addr, int value) =>
-          core.mmu.store(addr, value, MicroOpMemSize.word);
+          core.mmu.write(addr, value, MicroOpMemSize.word.bytes);
 
-      int readWord(int addr) => core.mmu.load(addr, MicroOpMemSize.word);
+      int readWord(int addr) => core.mmu.read(addr, MicroOpMemSize.word.bytes);
 
       void writeDword(int addr, int value) =>
-          core.mmu.store(addr, value, MicroOpMemSize.dword);
+          core.mmu.write(addr, value, MicroOpMemSize.dword.bytes);
 
-      int readDword(int addr) => core.mmu.load(addr, MicroOpMemSize.dword);
+      int readDword(int addr) =>
+          core.mmu.read(addr, MicroOpMemSize.dword.bytes);
 
       test('c.addi4spn expands to addi rd, x2, nzuimm', () {
         core.xregs[Register.x2] = 0x1000;

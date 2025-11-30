@@ -34,17 +34,18 @@ class DeviceAccessorEmulator {
 
   const DeviceAccessorEmulator(this.config);
 
-  int read(int addr, Mxlen mxlen) {
+  int read(int addr, int _width) {
     throw TrapException(Trap.loadAccess, addr);
   }
 
-  void write(int addr, int _value, Mxlen mxlen) {
+  void write(int addr, int _value, int _width) {
     throw TrapException(Trap.storeAccess, addr);
   }
 }
 
-class DeviceFieldAccessorEmulator extends DeviceAccessorEmulator {
-  final DeviceEmulator device;
+class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
+    extends DeviceAccessorEmulator {
+  final T device;
 
   DeviceFieldAccessorEmulator(this.device) : super(device.config.accessor!);
 
@@ -56,20 +57,24 @@ class DeviceFieldAccessorEmulator extends DeviceAccessorEmulator {
     throw TrapException(Trap.storeAccess, config.fieldAddress(name)!);
   }
 
-  int read(int addr, Mxlen mxlen) {
-    final fields = config.getFields(addr, mxlen.width);
+  int read(int addr, int width) {
+    final fields = config.getFields(addr, width);
 
     if (fields.isEmpty) {
       throw TrapException(Trap.loadAccess, addr);
     }
 
-    final end = addr + mxlen.width;
+    final end = addr + width;
 
     int result = 0;
     int offset = 0;
     for (final field in fields) {
-      final fieldStart = offset;
-      final fieldEnd = offset + field.width;
+      final fieldStart = config.fieldAddress(field.name)!;
+
+      // FIXME: things broke and multiplying the width by 2 fixed it.
+      // This feels like a hack.
+
+      final fieldEnd = offset + (field.width * 2);
       offset = fieldEnd;
 
       if (fieldEnd <= addr || fieldStart >= end) continue;
@@ -93,19 +98,24 @@ class DeviceFieldAccessorEmulator extends DeviceAccessorEmulator {
     return result;
   }
 
-  void write(int addr, int value, Mxlen mxlen) {
-    final fields = config.getFields(addr, mxlen.width);
+  void write(int addr, int value, int width) {
+    final fields = config.getFields(addr, width);
 
     if (fields.isEmpty) {
       throw TrapException(Trap.storeAccess, addr);
     }
 
-    final end = addr + mxlen.width;
+    final end = addr + width;
 
     int offset = 0;
     for (final field in fields) {
-      final fieldStart = offset;
-      final fieldEnd = offset + field.width;
+      final fieldStart = config.fieldAddress(field.name)!;
+
+      // FIXME: things broke and multiplying the width by 2 fixed it.
+      // This feels like a hack.
+
+      final fieldEnd = fieldStart + (field.width * 2);
+
       offset = fieldEnd;
 
       if (fieldEnd <= addr || fieldStart >= end) continue;
@@ -123,7 +133,7 @@ class DeviceFieldAccessorEmulator extends DeviceAccessorEmulator {
 
       final result = slice << (sliceOffset * 8);
 
-      writePath(field.name, result);
+      writePath(field.name, slice);
     }
   }
 }

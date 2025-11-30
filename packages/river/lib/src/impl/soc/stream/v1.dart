@@ -1,4 +1,5 @@
 import 'package:riscv/riscv.dart';
+import '../../devices/uart.dart';
 import '../../core/v1.dart';
 import '../../../interconnect/base.dart';
 import '../../../interconnect/wishbone.dart';
@@ -59,18 +60,7 @@ class StreamV1SoC extends RiverSoC {
       },
       clock: sysclk.clock,
     ),
-    Device.simple(
-      name: 'uart0',
-      compatible: 'river,uart',
-      interrupts: const [1],
-      range: const BusAddressRange(0x10000000, 0x00001000),
-      fields: const {
-        0: DeviceField('tx', 4),
-        1: DeviceField('rx', 4),
-        2: DeviceField('status', 4),
-      },
-      clock: sysclk.clock,
-    ),
+    RiverUart(name: 'uart0', address: 0x10000000, clock: sysclk.clock),
     Device.simple(
       name: 'gpio',
       compatible: 'river,gpio',

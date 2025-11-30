@@ -35,7 +35,7 @@ class DeviceAccessor {
     var offset = 0;
     for (final entry in fields.entries) {
       final field = entry.value;
-      if (addr >= offset && addr < offset + field.width) {
+      if (addr >= offset && addr < (offset + field.width)) {
         return field;
       }
       offset += field.width;

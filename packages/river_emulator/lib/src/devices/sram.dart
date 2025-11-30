@@ -28,17 +28,17 @@ class SramAccessorEmulator extends DeviceAccessorEmulator {
   SramAccessorEmulator(this.sram) : super(sram.config.accessor!);
 
   @override
-  int read(int addr, Mxlen mxlen) {
+  int read(int addr, int width) {
     return sram.data
-        .getRange(addr, addr + mxlen.width)
+        .getRange(addr, addr + width)
         .toList()
         .reversed
         .fold(0, (v, i) => (v << 8) | (i & 0xFF));
   }
 
   @override
-  void write(int addr, int value, Mxlen mxlen) {
-    for (int i = 0; i < mxlen.width; i++) {
+  void write(int addr, int value, int width) {
+    for (int i = 0; i < width; i++) {
       final byte = (value >> (8 * i)) & 0xFF;
 
       sram.data[addr + i] = byte;

@@ -55,7 +55,7 @@
                     runHook preBuild
                     mkdir -p $out $out/coverage
 
-                    dart --packages=.dart_tool/package_config.json --pause-isolates-on-exit --disable-service-auth-codes --enable-vm-service=8181 $(packagePath test)/bin/test.dart $packageRoot --file-reporter=json:$out/report.json -r expanded &
+                    dart --old_gen_heap_size=40960 --packages=.dart_tool/package_config.json --pause-isolates-on-exit --disable-service-auth-codes --enable-vm-service=8181 $(packagePath test)/bin/test.dart $packageRoot --file-reporter=json:$out/report.json -r expanded &
 
                     packageRun coverage -e collect_coverage --wait-paused --uri=http://127.0.0.1:8181/ -o $out/coverage/report.json --resume-isolates --scope-output=${args.pname}
                     packageRun coverage -e format_coverage --packages=.dart_tool/package_config.json --lcov -i $out/coverage/report.json -o $out/coverage/lcov.info
@@ -146,6 +146,8 @@
                     icestorm
                     nextpnr
                     gtkwave
+                    pkgsCross.riscv32-embedded.stdenv.cc
+                    pkgsCross.riscv64-embedded.stdenv.cc
                   ]
                   ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [
                     icesprog

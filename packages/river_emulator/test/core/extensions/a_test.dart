@@ -30,19 +30,19 @@ void main() {
     });
 
     void writeWord(int addr, int value) {
-      core.mmu.store(addr, value, MicroOpMemSize.word);
+      core.mmu.write(addr, value, MicroOpMemSize.word.bytes);
     }
 
     int readWord(int addr) {
-      return core.mmu.load(addr, MicroOpMemSize.word);
+      return core.mmu.read(addr, MicroOpMemSize.word.bytes);
     }
 
     void writeDword(int addr, int value) {
-      core.mmu.store(addr, value, MicroOpMemSize.dword);
+      core.mmu.write(addr, value, MicroOpMemSize.dword.bytes);
     }
 
     int readDword(int addr) {
-      return core.mmu.load(addr, MicroOpMemSize.dword);
+      return core.mmu.read(addr, MicroOpMemSize.dword.bytes);
     }
 
     test('lr.w loads a word and reserves the address', () {

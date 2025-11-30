@@ -3,6 +3,7 @@ import 'impl/soc.dart';
 import 'river_base.dart';
 
 export 'impl/core.dart';
+export 'impl/devices.dart';
 export 'impl/soc.dart';
 
 enum RiverPlatformChoice {

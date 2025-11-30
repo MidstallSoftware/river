@@ -1,6 +1,7 @@
 library;
 
 export 'src/extensions.dart';
+export 'src/helpers.dart';
 export 'src/ops.dart';
 export 'src/privilege.dart';
 export 'src/riscv_isa_base.dart';

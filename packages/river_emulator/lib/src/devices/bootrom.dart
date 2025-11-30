@@ -51,10 +51,10 @@ class BootromAccessorEmulator extends DeviceAccessorEmulator {
   BootromAccessorEmulator(this.rom) : super(rom.config.accessor!);
 
   @override
-  int read(int addr, Mxlen mxlen) {
+  int read(int addr, int width) {
     if (!rom.enabled) throw TrapException(Trap.loadAccess, addr);
     return rom.data
-        .getRange(addr, addr + mxlen.width)
+        .getRange(addr, addr + width)
         .toList()
         .reversed
         .fold(0, (v, i) => (v << 8) | (i & 0xFF));

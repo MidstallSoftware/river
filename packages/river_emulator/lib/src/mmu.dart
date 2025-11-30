@@ -82,6 +82,7 @@ class MmuEmulator {
     while (true) {
       final pte = read(
         a + vpn[i] * config.mxlen.width,
+        config.mxlen.width,
         pageTranslate: false,
         privilege: privilege,
       );
@@ -162,7 +163,8 @@ class MmuEmulator {
   }
 
   int read(
-    int addr, {
+    int addr,
+    int width, {
     PrivilegeMode privilege = PrivilegeMode.machine,
     bool pageTranslate = true,
     bool sum = false,
@@ -183,7 +185,7 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        return dev.read(addr - block.start, config.mxlen);
+        return dev.read(addr - block.start, width);
       }
     }
 
@@ -192,7 +194,8 @@ class MmuEmulator {
 
   void write(
     int addr,
-    int value, {
+    int value,
+    int width, {
     PrivilegeMode privilege = PrivilegeMode.machine,
     bool pageTranslate = true,
     bool sum = false,
@@ -213,69 +216,12 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        dev.write(addr - block.start, value, config.mxlen);
+        dev.write(addr - block.start, value, width);
         return;
       }
     }
 
     throw TrapException(Trap.storeAccess, addr);
-  }
-
-  int load(
-    int addr,
-    MicroOpMemSize size, {
-    PrivilegeMode privilege = PrivilegeMode.machine,
-    bool pageTranslate = true,
-    bool sum = false,
-    bool mxr = false,
-  }) {
-    final raw = read(
-      addr,
-      privilege: privilege,
-      pageTranslate: pageTranslate,
-      sum: sum,
-      mxr: mxr,
-    );
-
-    switch (size) {
-      case MicroOpMemSize.byte:
-        return raw & 0xFF;
-
-      case MicroOpMemSize.half:
-        return raw & 0xFFFF;
-
-      case MicroOpMemSize.word:
-        return raw & 0xFFFFFFFF;
-
-      case MicroOpMemSize.dword:
-        return raw;
-    }
-  }
-
-  void store(
-    int addr,
-    int value,
-    MicroOpMemSize size, {
-    PrivilegeMode privilege = PrivilegeMode.machine,
-    bool pageTranslate = true,
-    bool sum = false,
-    bool mxr = false,
-  }) {
-    final masked = switch (size) {
-      MicroOpMemSize.byte => value & 0xFF,
-      MicroOpMemSize.half => value & 0xFFFF,
-      MicroOpMemSize.word => value & 0xFFFFFFFF,
-      MicroOpMemSize.dword => value,
-    };
-
-    write(
-      addr,
-      masked,
-      privilege: privilege,
-      pageTranslate: pageTranslate,
-      sum: sum,
-      mxr: mxr,
-    );
   }
 
   @override

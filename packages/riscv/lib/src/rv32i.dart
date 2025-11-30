@@ -252,6 +252,7 @@ const rv32i = RiscVExtension(
       constructor: SType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
         MemStoreMicroOp(
           base: MicroOpField.rs1,
           src: MicroOpField.rs2,
@@ -268,6 +269,7 @@ const rv32i = RiscVExtension(
       constructor: SType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
         MemStoreMicroOp(
           base: MicroOpField.rs1,
           src: MicroOpField.rs2,

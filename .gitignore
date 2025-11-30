@@ -15,3 +15,8 @@ doc/api
 
 *.lcov
 *.dart.vm.json
+
+*.o
+*.out
+*.elf
+*.bin

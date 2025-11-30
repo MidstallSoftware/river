@@ -370,20 +370,26 @@ class RiverCoreEmulator {
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    return mmu.read(phys, pageTranslate: false, sum: sum, mxr: mxr);
+    return mmu.read(
+      phys,
+      config.mxlen.width,
+      pageTranslate: false,
+      sum: sum,
+      mxr: mxr,
+    );
   }
 
-  int read(int addr) {
+  int read(int addr, int width) {
     final phys = translate(addr, MemoryAccess.read);
 
     final mstatus = csrs.read(CsrAddress.mstatus.address, this);
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    return mmu.read(phys, pageTranslate: false, sum: sum, mxr: mxr);
+    return mmu.read(phys, width, pageTranslate: false, sum: sum, mxr: mxr);
   }
 
-  void write(int addr, int value) {
+  void write(int addr, int value, int width) {
     final phys = translate(addr, MemoryAccess.write);
 
     if (_reservationSet.isNotEmpty) {
@@ -398,7 +404,7 @@ class RiverCoreEmulator {
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    mmu.write(phys, value, pageTranslate: false, sum: sum, mxr: mxr);
+    mmu.write(phys, value, width, pageTranslate: false, sum: sum, mxr: mxr);
   }
 
   RiverCoreEmulatorState _innerExecute(
@@ -642,7 +648,7 @@ class RiverCoreEmulator {
         }
 
         try {
-          final loaded = read(addr);
+          final loaded = read(addr, mop.size.bytes);
 
           final finalValue = mop.unsigned
               ? loaded.toUnsigned(mop.size.bits)
@@ -664,7 +670,7 @@ class RiverCoreEmulator {
         }
 
         try {
-          write(addr, value.toUnsigned(mop.size.bits));
+          write(addr, value.toUnsigned(mop.size.bits), mop.size.bytes);
         } on TrapException catch (e) {
           state.pc = trap(state.pc, e);
           return state;
@@ -821,7 +827,7 @@ class RiverCoreEmulator {
         }
 
         try {
-          final loaded = read(addr);
+          final loaded = read(addr, config.mxlen.width);
 
           final value = loaded.toSigned(mop.size.bits);
 
@@ -863,6 +869,7 @@ class RiverCoreEmulator {
             mmu.write(
               phys,
               srcValue.toUnsigned(mop.size.bits),
+              config.mxlen.width,
               pageTranslate: false,
               sum: sum,
               mxr: mxr,
@@ -904,6 +911,7 @@ class RiverCoreEmulator {
 
           final loaded = mmu.read(
             phys,
+            config.mxlen.width,
             pageTranslate: false,
             sum: sum,
             mxr: mxr,
@@ -958,7 +966,14 @@ class RiverCoreEmulator {
               break;
           }
 
-          mmu.write(phys, newVal, pageTranslate: false, sum: sum, mxr: mxr);
+          mmu.write(
+            phys,
+            newVal,
+            config.mxlen.width,
+            pageTranslate: false,
+            sum: sum,
+            mxr: mxr,
+          );
 
           final rdIndex = state.readField(mop.dest);
           final rdReg = Register.values[rdIndex];
