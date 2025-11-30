@@ -145,6 +145,7 @@
                     yosys
                     icestorm
                     nextpnr
+                    gtkwave
                   ]
                   ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [
                     icesprog

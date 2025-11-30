@@ -7,7 +7,6 @@ const rv32i = RiscVExtension(
     Operation<UType>(
       mnemonic: 'lui',
       opcode: 0x37,
-      funct3: 0x0,
       struct: UType.STRUCT,
       constructor: UType.map,
       microcode: [
@@ -18,7 +17,6 @@ const rv32i = RiscVExtension(
     Operation<UType>(
       mnemonic: 'auipc',
       opcode: 0x17,
-      funct3: 0x0,
       struct: UType.STRUCT,
       constructor: UType.map,
       microcode: [
@@ -30,11 +28,10 @@ const rv32i = RiscVExtension(
     Operation<JType>(
       mnemonic: 'jal',
       opcode: 0x6F,
-      funct3: 0x0,
       struct: JType.STRUCT,
       constructor: JType.map,
       microcode: [
-        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm, offset: 4),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.pc, valueOffset: 4),
         UpdatePCMicroOp(MicroOpField.pc, offsetField: MicroOpField.imm),
       ],
     ),
@@ -202,9 +199,10 @@ const rv32i = RiscVExtension(
         MemLoadMicroOp(
           base: MicroOpField.rs1,
           size: MicroOpMemSize.word,
-          unsigned: false,
-          dest: MicroOpField.rd,
+          unsigned: true,
+          dest: MicroOpField.rs2,
         ),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.rs2),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
     ),
@@ -220,8 +218,9 @@ const rv32i = RiscVExtension(
           base: MicroOpField.rs1,
           size: MicroOpMemSize.byte,
           unsigned: true,
-          dest: MicroOpField.rd,
+          dest: MicroOpField.rs2,
         ),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.rs2),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
     ),
@@ -282,6 +281,7 @@ const rv32i = RiscVExtension(
       constructor: SType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
+        ReadRegisterMicroOp(MicroOpField.rs2),
         MemStoreMicroOp(
           base: MicroOpField.rs1,
           src: MicroOpField.rs2,

@@ -59,6 +59,8 @@ class RiverCoreEmulatorState {
         return rs2;
       case MicroOpSource.rd:
         return rd;
+      case MicroOpSource.pc:
+        return pc;
       default:
         throw 'Invalid source $source';
     }
@@ -410,7 +412,7 @@ class RiverCoreEmulator {
 
     for (final mop in op.microcode) {
       if (mop is WriteRegisterMicroOp) {
-        final value = state.readSource(mop.source);
+        final value = state.readSource(mop.source) + mop.valueOffset;
         final reg = Register.values[mop.offset + state.readField(mop.field)];
         if (reg == Register.x0) {
           continue;
@@ -419,7 +421,7 @@ class RiverCoreEmulator {
         xregs[reg] = value;
       } else if (mop is ReadRegisterMicroOp) {
         final reg = Register.values[mop.offset + state.readField(mop.source)];
-        final value = xregs[reg] ?? 0;
+        final value = (xregs[reg] ?? 0) + mop.valueOffset;
         state.writeField(mop.source, value);
       } else if (mop is AluMicroOp) {
         final a = state.readField(mop.a);
@@ -695,6 +697,7 @@ class RiverCoreEmulator {
 
         if (condition) {
           state.pc += value;
+          return state;
         }
       } else if (mop is WriteLinkRegisterMicroOp) {
         xregs[mop.link.reg] = state.pc + mop.pcOffset;

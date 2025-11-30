@@ -36,7 +36,7 @@ enum MicroOpAluFunct {
 
 enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }
 
-enum MicroOpSource { alu, mem, imm, rs1, rs2, sp, rd }
+enum MicroOpSource { alu, mem, imm, rs1, rs2, sp, rd, pc }
 
 enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
 
@@ -84,21 +84,35 @@ class WriteCsrMicroOp extends MicroOp {
 class ReadRegisterMicroOp extends MicroOp {
   final MicroOpField source;
   final int offset;
+  final int valueOffset;
 
-  const ReadRegisterMicroOp(this.source, {this.offset = 0});
+  const ReadRegisterMicroOp(
+    this.source, {
+    this.offset = 0,
+    this.valueOffset = 0,
+  });
 
   @override
-  String toString() => 'ReadRegisterMicroOp($source, offset: $offset)';
+  String toString() =>
+      'ReadRegisterMicroOp($source, offset: $offset, valueOffset: $valueOffset)';
 }
 
 class WriteRegisterMicroOp extends MicroOp {
   final MicroOpField field;
   final MicroOpSource source;
   final int offset;
-  const WriteRegisterMicroOp(this.field, this.source, {this.offset = 0});
+  final int valueOffset;
+
+  const WriteRegisterMicroOp(
+    this.field,
+    this.source, {
+    this.offset = 0,
+    this.valueOffset = 0,
+  });
 
   @override
-  String toString() => 'WriteRegisterMicroOp($field, $source, offset: $offset)';
+  String toString() =>
+      'WriteRegisterMicroOp($field, $source, offset: $offset, valueOffset: $valueOffset)';
 }
 
 class ModifyLatchMicroOp extends MicroOp {
@@ -529,7 +543,6 @@ class Microcode {
       }
 
       final temp = entry.value.struct.encode(map);
-
       if ((temp & entry.key.mask) == entry.key.value) return entry.value;
     }
     return null;
