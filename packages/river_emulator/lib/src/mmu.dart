@@ -185,7 +185,11 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        return dev.read(addr - block.start, width);
+        try {
+          return dev.read(addr - block.start, width);
+        } on TrapException catch (e) {
+          throw e.relocate(block.start);
+        }
       }
     }
 
@@ -216,7 +220,11 @@ class MmuEmulator {
       final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        dev.write(addr - block.start, value, width);
+        try {
+          dev.write(addr - block.start, value, width);
+        } on TrapException catch (e) {
+          throw e.relocate(block.start);
+        }
         return;
       }
     }

@@ -70,11 +70,8 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
     int offset = 0;
     for (final field in fields) {
       final fieldStart = config.fieldAddress(field.name)!;
+      final fieldEnd = offset + field.width;
 
-      // FIXME: things broke and multiplying the width by 2 fixed it.
-      // This feels like a hack.
-
-      final fieldEnd = offset + (field.width * 2);
       offset = fieldEnd;
 
       if (fieldEnd <= addr || fieldStart >= end) continue;
@@ -110,11 +107,7 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
     int offset = 0;
     for (final field in fields) {
       final fieldStart = config.fieldAddress(field.name)!;
-
-      // FIXME: things broke and multiplying the width by 2 fixed it.
-      // This feels like a hack.
-
-      final fieldEnd = fieldStart + (field.width * 2);
+      final fieldEnd = fieldStart + field.width;
 
       offset = fieldEnd;
 

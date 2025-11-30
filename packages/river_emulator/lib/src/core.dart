@@ -25,8 +25,19 @@ class TrapException implements Exception {
 
   final int? tval;
 
+  TrapException relocate(int offset) {
+    switch (trap) {
+      case Trap.loadAccess:
+      case Trap.storeAccess:
+        return TrapException(trap, offset + (tval ?? 0));
+      default:
+        return this;
+    }
+  }
+
   @override
-  String toString() => 'TrapException($trap, $tval)';
+  String toString() =>
+      'TrapException($trap, ${tval != null ? '0x' + tval!.toRadixString(16) : null})';
 }
 
 class RiverCoreEmulatorState {

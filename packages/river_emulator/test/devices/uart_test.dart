@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:riscv/riscv.dart';
@@ -7,18 +8,37 @@ import 'package:test/test.dart';
 
 import '../constants.dart';
 
+/**
+ * ```
+ * li x5, 0x20000
+ *
+ * /* Set divisor to 3 */
+ * li x6, 3
+ * sb x6, 12(x5)
+ *
+ * /* Set enable bit in status */
+ * li x6, 1 << 0
+ * sb x6, 8(x5)
+ * ```
+ */
+const kInitProg = [0x000202b7, 0x00300313, 0x00628623, 0x00100313, 0x00628423];
+
 void main() {
   cpuTests('UART Device', (config) {
     late SramEmulator sram;
     late UartEmulator uart;
     late RiverCoreEmulator core;
-    late StringBuffer input;
-    late StringBuffer output;
+    late StreamController<List<int>> inputController;
+    late StreamController<List<int>> outputController;
+    late List<int> uartOutput;
     late int pc;
 
     setUp(() {
-      input = StringBuffer();
-      output = StringBuffer();
+      inputController = StreamController<List<int>>();
+      outputController = StreamController<List<int>>();
+      uartOutput = [];
+
+      outputController.stream.listen(uartOutput.addAll);
 
       sram = SramEmulator(
         Device.simple(
@@ -32,8 +52,8 @@ void main() {
 
       uart = UartEmulator(
         RiverUart(name: 'uart0', address: 0x20000, clock: config.clock),
-        input: stdin,
-        output: stdout,
+        input: inputController.stream,
+        output: outputController.sink,
       );
 
       core = RiverCoreEmulator(
@@ -54,25 +74,42 @@ void main() {
 
     int readDword(int addr) => core.mmu.read(addr, MicroOpMemSize.dword.bytes);
 
-    test('Reset', () {
-      final prog = [
-        0x000204b7,
-        0x00100793,
-        0x00f48123,
-        0x00300793,
-        0x00f49223,
-        0x00000013,
-        0x00000793,
-      ];
-
-      for (int i = 0; i < prog.length; i++) {
+    void exec(List<int> prog) {
+      int i = 0;
+      while (i < prog.length) {
         final instr = prog[i];
+        if (instr == 0x13) break;
+
         final pc = core.cycle(i * 4, instr);
-        expect(pc, equals((i * 4) + 4));
+        i = pc ~/ 4;
       }
+    }
+
+    test('Reset', () {
+      core.reset();
+      uart.reset();
+      uartOutput.clear();
+
+      exec(kInitProg);
 
       expect(uart.enabled, true);
       expect(uart.divisor, 3);
+    });
+
+    test('Write A', () async {
+      core.reset();
+      uart.reset();
+      uartOutput.clear();
+
+      final prog = [...kInitProg, 0x04100313, 0x00628023];
+
+      exec(prog);
+
+      await Future.delayed(Duration.zero);
+
+      expect(uart.enabled, true);
+      expect(uart.divisor, 3);
+      expect(String.fromCharCodes(uartOutput), 'A');
     });
   });
 }

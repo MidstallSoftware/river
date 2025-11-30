@@ -17,10 +17,10 @@ class RiverUart extends Device {
          range: BusAddressRange(address, 0x100),
          clock: clock,
          accessor: DeviceAccessor('/$name', const {
-           0: DeviceField('tx', 1),
-           1: DeviceField('rx', 1),
-           2: DeviceField('status', 1),
-           3: DeviceField('divisor', 2),
+           0: DeviceField('tx', 4),
+           1: DeviceField('rx', 4),
+           2: DeviceField('status', 4),
+           3: DeviceField('divisor', 8),
          }),
        );
 

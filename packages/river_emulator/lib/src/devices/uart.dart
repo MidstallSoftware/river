@@ -42,7 +42,7 @@ class UartEmulator extends DeviceEmulator {
     RiverSoCEmulator _soc,
   ) {
     Stream<List<int>>? input;
-    IOSink? output;
+    StreamSink<List<int>>? output;
 
     if (options.containsKey('path')) {
       final file = File(options['path']!);
@@ -76,7 +76,7 @@ class UartAccessorEmulator extends DeviceFieldAccessorEmulator<UartEmulator> {
       case 'status':
         return RiverUart.status.encode({
           'enable': device.enabled ? 1 : 0,
-          'txRead': 0,
+          'txReady': 1,
           'rxReady': 0,
           'error': device.error,
         });
@@ -90,7 +90,7 @@ class UartAccessorEmulator extends DeviceFieldAccessorEmulator<UartEmulator> {
   void writePath(String name, int value) {
     switch (name) {
       case 'tx':
-        print(String.fromCharCode(value));
+        device.output.add([value & 0xFF]);
         break;
       case 'status':
         final status = RiverUart.status.decode(value);
