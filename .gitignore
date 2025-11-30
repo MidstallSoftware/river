@@ -11,7 +11,7 @@ target
 # Created by `dart pub`
 .dart_tool/
 
-doc
+doc/api
 
 *.lcov
 *.dart.vm.json

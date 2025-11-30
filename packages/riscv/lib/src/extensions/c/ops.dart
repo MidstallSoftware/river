@@ -3,6 +3,9 @@ import '../../riscv_isa_base.dart';
 import 'decode.dart';
 import 'isa.dart';
 
+/// RVC extension
+///
+/// {@category extensions}
 const rvc = RiscVExtension(
   [
     Operation<CompressedWIType>(

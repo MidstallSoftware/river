@@ -1,12 +1,15 @@
 import 'helpers.dart';
 import 'riscv_isa_base.dart';
 
+/// {@category microcode}
 sealed class MicroOp {
   const MicroOp();
 }
 
+/// {@category microcode}
 enum MicroOpCondition { eq, ne, lt, gt, ge, le }
 
+/// {@category microcode}
 enum MicroOpAluFunct {
   add,
   sub,
@@ -34,12 +37,16 @@ enum MicroOpAluFunct {
   remuw,
 }
 
+/// {@category microcode}
 enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }
 
+/// {@category microcode}
 enum MicroOpSource { alu, mem, imm, rs1, rs2, sp, rd, pc }
 
+/// {@category microcode}
 enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
 
+/// {@category microcode}
 enum MicroOpLink {
   ra(Register.x1);
 
@@ -48,6 +55,7 @@ enum MicroOpLink {
   final Register reg;
 }
 
+/// {@category microcode}
 enum MicroOpMemSize {
   byte(1),
   half(2),
@@ -61,6 +69,7 @@ enum MicroOpMemSize {
   int get bits => bytes * 8;
 }
 
+/// {@category microcode}
 class ReadCsrMicroOp extends MicroOp {
   final MicroOpField source;
 
@@ -70,6 +79,7 @@ class ReadCsrMicroOp extends MicroOp {
   String toString() => 'ReadCsrMicroOp($source)';
 }
 
+/// {@category microcode}
 class WriteCsrMicroOp extends MicroOp {
   final MicroOpField field;
   final MicroOpSource source;
@@ -81,6 +91,7 @@ class WriteCsrMicroOp extends MicroOp {
   String toString() => 'WriteCsrMicroOp($field, $source, offset: $offset)';
 }
 
+/// {@category microcode}
 class ReadRegisterMicroOp extends MicroOp {
   final MicroOpField source;
   final int offset;
@@ -97,6 +108,7 @@ class ReadRegisterMicroOp extends MicroOp {
       'ReadRegisterMicroOp($source, offset: $offset, valueOffset: $valueOffset)';
 }
 
+/// {@category microcode}
 class WriteRegisterMicroOp extends MicroOp {
   final MicroOpField field;
   final MicroOpSource source;
@@ -115,6 +127,7 @@ class WriteRegisterMicroOp extends MicroOp {
       'WriteRegisterMicroOp($field, $source, offset: $offset, valueOffset: $valueOffset)';
 }
 
+/// {@category microcode}
 class ModifyLatchMicroOp extends MicroOp {
   final MicroOpField field;
   final MicroOpSource source;
@@ -126,6 +139,7 @@ class ModifyLatchMicroOp extends MicroOp {
   String toString() => 'ModifyLatchMicroOp($field, $source, $replace)';
 }
 
+/// {@category microcode}
 class AluMicroOp extends MicroOp {
   final MicroOpAluFunct funct;
   final MicroOpField a;
@@ -136,6 +150,7 @@ class AluMicroOp extends MicroOp {
   String toString() => 'AluMicroOp($funct, $a, $b)';
 }
 
+/// {@category microcode}
 class BranchIfMicroOp extends MicroOp {
   final MicroOpCondition condition;
   final MicroOpSource target;
@@ -154,6 +169,7 @@ class BranchIfMicroOp extends MicroOp {
       'BranchIfMicroOp($condition, $target, $offset, $offsetField)';
 }
 
+/// {@category microcode}
 class UpdatePCMicroOp extends MicroOp {
   final MicroOpField source;
   final int offset;
@@ -168,6 +184,7 @@ class UpdatePCMicroOp extends MicroOp {
   String toString() => 'UpdatePCMicroOp($source, $offset, $offsetField)';
 }
 
+/// {@category microcode}
 class MemLoadMicroOp extends MicroOp {
   final MicroOpField base;
   final MicroOpMemSize size;
@@ -186,6 +203,7 @@ class MemLoadMicroOp extends MicroOp {
       'MemLoadMicroOp($base, $size, ${unsigned ? 'unsigned' : 'signed'}, $dest)';
 }
 
+/// {@category microcode}
 class MemStoreMicroOp extends MicroOp {
   final MicroOpField base;
   final MicroOpField src;
@@ -201,6 +219,7 @@ class MemStoreMicroOp extends MicroOp {
   String toString() => 'MemStoreMicroOp($base, $src, $size)';
 }
 
+/// {@category microcode}
 class TrapMicroOp extends MicroOp {
   final Trap kindMachine;
   final Trap? kindSupervisor;
@@ -215,6 +234,7 @@ class TrapMicroOp extends MicroOp {
   String toString() => 'TrapMicroOp($kindMachine, $kindSupervisor, $kindUser)';
 }
 
+/// {@category microcode}
 class TlbFenceMicroOp extends MicroOp {
   const TlbFenceMicroOp();
 
@@ -222,6 +242,7 @@ class TlbFenceMicroOp extends MicroOp {
   String toString() => 'TlbFenceMicroOp()';
 }
 
+/// {@category microcode}
 class TlbInvalidateMicroOp extends MicroOp {
   final MicroOpField addrField;
   final MicroOpField asidField;
@@ -236,6 +257,7 @@ class TlbInvalidateMicroOp extends MicroOp {
       'TlbInvalidateMicroOp(addrField: $addrField, asidField: $asidField)';
 }
 
+/// {@category microcode}
 class FenceMicroOp extends MicroOp {
   const FenceMicroOp();
 
@@ -243,6 +265,7 @@ class FenceMicroOp extends MicroOp {
   String toString() => 'FenceMicroOp()';
 }
 
+/// {@category microcode}
 class ReturnMicroOp extends MicroOp {
   final PrivilegeMode mode;
 
@@ -252,6 +275,7 @@ class ReturnMicroOp extends MicroOp {
   String toString() => 'ReturnMicroOp($mode)';
 }
 
+/// {@category microcode}
 class WriteLinkRegisterMicroOp extends MicroOp {
   final MicroOpLink link;
   final int pcOffset;
@@ -262,6 +286,7 @@ class WriteLinkRegisterMicroOp extends MicroOp {
   String toString() => 'WriteLinkRegisterMicroOp($link, $pcOffset)';
 }
 
+/// {@category microcode}
 class InterruptHoldMicroOp extends MicroOp {
   const InterruptHoldMicroOp();
 
@@ -269,6 +294,7 @@ class InterruptHoldMicroOp extends MicroOp {
   String toString() => 'InterruptHoldMicroOp()';
 }
 
+/// {@category microcode}
 class LoadReservedMicroOp extends MicroOp {
   final MicroOpField base;
   final MicroOpField dest;
@@ -280,6 +306,7 @@ class LoadReservedMicroOp extends MicroOp {
   String toString() => 'LoadReservedMicroOp($base, $dest, $size)';
 }
 
+/// {@category microcode}
 class StoreConditionalMicroOp extends MicroOp {
   final MicroOpField base;
   final MicroOpField src;
@@ -297,6 +324,7 @@ class StoreConditionalMicroOp extends MicroOp {
   String toString() => 'StoreConditionalMicroOp($base, $src, $dest, $size)';
 }
 
+/// {@category microcode}
 class AtomicMemoryMicroOp extends MicroOp {
   final MicroOpAtomicFunct funct;
   final MicroOpField base;
@@ -316,6 +344,7 @@ class AtomicMemoryMicroOp extends MicroOp {
   String toString() => 'AtomicMemoryMicroOp($funct, $base, $src, $dest, $size)';
 }
 
+/// {@category microcode}
 class ValidateFieldMicroOp extends MicroOp {
   final MicroOpCondition condition;
   final MicroOpField field;
@@ -327,6 +356,7 @@ class ValidateFieldMicroOp extends MicroOp {
   String toString() => 'ValidateFieldMicroOp($condition, $field, $value)';
 }
 
+/// {@category microcode}
 class SetFieldMicroOp extends MicroOp {
   final MicroOpField field;
   final int value;
@@ -337,6 +367,7 @@ class SetFieldMicroOp extends MicroOp {
   String toString() => 'SetFieldMicroOp($field, $value)';
 }
 
+/// {@category microcode}
 class OperationDecodePattern {
   final int mask;
   final int value;
@@ -362,6 +393,7 @@ class OperationDecodePattern {
       'OperationDecodePattern($mask, $value, $opIndex, $nonZeroFields)';
 }
 
+/// {@category microcode}
 class Operation<T extends InstructionType> {
   final String mnemonic;
   final int opcode;
@@ -493,6 +525,7 @@ class Operation<T extends InstructionType> {
       ' microcode: $microcode)';
 }
 
+/// {@category microcode}
 class RiscVExtension {
   final List<Operation<InstructionType>> operations;
   final String? name;
@@ -529,6 +562,7 @@ class RiscVExtension {
   String toString() => name ?? 'RiscVExtension($operations, mask: $mask)';
 }
 
+/// {@category microcode}
 class Microcode {
   final Map<OperationDecodePattern, Operation<InstructionType>> map;
 

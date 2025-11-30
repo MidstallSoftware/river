@@ -10,5 +10,6 @@ workspace:
   - packages/river_adl
   - packages/river_emulator
   - packages/river_hdl
+
 dev_dependencies:
   coverage: ^1.15.0

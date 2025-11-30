@@ -48,6 +48,9 @@ class SystemType extends InstructionType {
       SystemType.map(SystemType.STRUCT.decode(instr));
 }
 
+/// 32-bit base privilege extension
+///
+/// {@category extensions}
 const rv32BasePrivilege = RiscVExtension([
   Operation<SystemType>(
     mnemonic: 'mret',

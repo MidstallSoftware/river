@@ -2,6 +2,9 @@ import 'riscv_isa_base.dart';
 import 'riscv_isa_decode.dart';
 import 'ops.dart';
 
+/// RV64I extension
+///
+/// {@category extensions}
 const rv64i = RiscVExtension(
   [
     Operation<IType>(

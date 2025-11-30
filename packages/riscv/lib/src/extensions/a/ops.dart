@@ -2,6 +2,9 @@ import '../../ops.dart';
 import '../../riscv_isa_base.dart';
 import '../../riscv_isa_decode.dart';
 
+/// RV32A extension
+///
+/// {@category extensions}
 const rv32Atomics = RiscVExtension(
   [
     Operation<RType>(
@@ -226,6 +229,9 @@ const rv32Atomics = RiscVExtension(
   mask: 1 << 0,
 );
 
+/// RV64A extension
+///
+/// {@category extensions}
 const rv64Atomics = RiscVExtension(
   [
     Operation<RType>(

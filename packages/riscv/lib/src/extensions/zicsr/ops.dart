@@ -3,6 +3,9 @@ import '../../riscv_isa_base.dart';
 import 'decode.dart';
 import 'isa.dart';
 
+/// 32-bit Zicsr extension
+///
+/// {@category extensions}
 const rv32Zicsr = RiscVExtension(
   [
     Operation<SystemIType>(
