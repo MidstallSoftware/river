@@ -29,7 +29,7 @@ void main() {
       pc = config.resetVector;
     });
 
-    test('MRET returns from trap', () {
+    test('MRET returns from trap', () async {
       core.reset();
 
       core.csrs.write(CsrAddress.mtvec.address, 0x80000000, core);
@@ -39,7 +39,7 @@ void main() {
       mstatus = (mstatus & ~(0x3 << 11)) | (3 << 11);
       core.csrs.write(CsrAddress.mstatus.address, mstatus, core);
 
-      final nextPc = core.cycle(0x1000, 0x30200073);
+      final nextPc = await core.cycle(0x1000, 0x30200073);
 
       expect(nextPc, 0x200);
       expect(core.mode, PrivilegeMode.machine);

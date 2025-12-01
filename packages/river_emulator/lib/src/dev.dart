@@ -34,13 +34,16 @@ class DeviceAccessorEmulator {
 
   const DeviceAccessorEmulator(this.config);
 
-  int read(int addr, int _width) {
-    throw TrapException(Trap.loadAccess, addr);
+  Future<int> read(int addr, int _width) {
+    throw TrapException(Trap.loadAccess, addr, StackTrace.current);
   }
 
-  void write(int addr, int _value, int _width) {
-    throw TrapException(Trap.storeAccess, addr);
+  Future<void> write(int addr, int _value, int _width) {
+    throw TrapException(Trap.storeAccess, addr, StackTrace.current);
   }
+
+  @override
+  String toString() => '$runtimeType(config: $config)';
 }
 
 class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
@@ -49,19 +52,27 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
 
   DeviceFieldAccessorEmulator(this.device) : super(device.config.accessor!);
 
-  int readPath(String name) {
-    throw TrapException(Trap.loadAccess, config.fieldAddress(name)!);
+  Future<int> readPath(String name) {
+    throw TrapException(
+      Trap.loadAccess,
+      config.fieldAddress(name)!,
+      StackTrace.current,
+    );
   }
 
-  void writePath(String name, int _value) {
-    throw TrapException(Trap.storeAccess, config.fieldAddress(name)!);
+  Future<void> writePath(String name, int _value) {
+    throw TrapException(
+      Trap.storeAccess,
+      config.fieldAddress(name)!,
+      StackTrace.current,
+    );
   }
 
-  int read(int addr, int width) {
+  Future<int> read(int addr, int width) async {
     final fields = config.getFields(addr, width);
 
     if (fields.isEmpty) {
-      throw TrapException(Trap.loadAccess, addr);
+      throw TrapException(Trap.loadAccess, addr, StackTrace.current);
     }
 
     final end = addr + width;
@@ -70,7 +81,7 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
     int offset = 0;
     for (final field in fields) {
       final fieldStart = config.fieldAddress(field.name)!;
-      final fieldEnd = offset + field.width;
+      final fieldEnd = fieldStart + field.width;
 
       offset = fieldEnd;
 
@@ -82,7 +93,7 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
 
       final sliceOffset = overlapStart - fieldStart;
 
-      final fieldValue = readPath(field.name);
+      final fieldValue = await readPath(field.name);
 
       final slice =
           (fieldValue >> (sliceOffset * 8)) & ((1 << (overlapBytes * 8)) - 1);
@@ -95,11 +106,11 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
     return result;
   }
 
-  void write(int addr, int value, int width) {
+  Future<void> write(int addr, int value, int width) async {
     final fields = config.getFields(addr, width);
 
     if (fields.isEmpty) {
-      throw TrapException(Trap.storeAccess, addr);
+      throw TrapException(Trap.storeAccess, addr, StackTrace.current);
     }
 
     final end = addr + width;
@@ -126,7 +137,7 @@ class DeviceFieldAccessorEmulator<T extends DeviceEmulator>
 
       final result = slice << (sliceOffset * 8);
 
-      writePath(field.name, slice);
+      await writePath(field.name, slice);
     }
   }
 }

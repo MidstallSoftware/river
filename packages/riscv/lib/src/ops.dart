@@ -48,11 +48,13 @@ enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
 
 /// {@category microcode}
 enum MicroOpLink {
-  ra(Register.x1);
+  ra(Register.x1, null),
+  rd(null, MicroOpSource.rd);
 
-  const MicroOpLink(this.reg);
+  const MicroOpLink(this.reg, this.source);
 
-  final Register reg;
+  final Register? reg;
+  final MicroOpSource? source;
 }
 
 /// {@category microcode}
@@ -173,15 +175,23 @@ class BranchIfMicroOp extends MicroOp {
 class UpdatePCMicroOp extends MicroOp {
   final MicroOpField source;
   final int offset;
+  final MicroOpSource? offsetSource;
   final MicroOpField? offsetField;
+  final bool absolute;
+  final bool align;
+
   const UpdatePCMicroOp(
     this.source, {
     this.offset = 0,
     this.offsetField = null,
+    this.offsetSource = null,
+    this.absolute = false,
+    this.align = false,
   });
 
   @override
-  String toString() => 'UpdatePCMicroOp($source, $offset, $offsetField)';
+  String toString() =>
+      'UpdatePCMicroOp($source, $offset, $offsetField, $offsetSource, absolute: $absolute, align: $align)';
 }
 
 /// {@category microcode}

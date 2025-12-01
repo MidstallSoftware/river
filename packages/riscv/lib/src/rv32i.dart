@@ -35,7 +35,11 @@ const rv32i = RiscVExtension(
       constructor: JType.map,
       microcode: [
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.pc, valueOffset: 4),
-        UpdatePCMicroOp(MicroOpField.pc, offsetField: MicroOpField.imm),
+        UpdatePCMicroOp(
+          MicroOpField.pc,
+          offsetField: MicroOpField.imm,
+          align: true,
+        ),
       ],
     ),
     Operation<IType>(
@@ -46,9 +50,14 @@ const rv32i = RiscVExtension(
       constructor: IType.map,
       microcode: [
         ReadRegisterMicroOp(MicroOpField.rs1),
-        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.imm, offset: 4),
         AluMicroOp(MicroOpAluFunct.add, MicroOpField.rs1, MicroOpField.imm),
-        UpdatePCMicroOp(MicroOpField.pc, offsetField: MicroOpField.imm),
+        WriteLinkRegisterMicroOp(link: MicroOpLink.rd, pcOffset: 4),
+        UpdatePCMicroOp(
+          MicroOpField.pc,
+          offsetSource: MicroOpSource.alu,
+          absolute: true,
+          align: true,
+        ),
       ],
     ),
     Operation<BType>(
@@ -169,8 +178,9 @@ const rv32i = RiscVExtension(
           base: MicroOpField.rs1,
           size: MicroOpMemSize.byte,
           unsigned: false,
-          dest: MicroOpField.rd,
+          dest: MicroOpField.rs2,
         ),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.rs2),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
     ),
@@ -186,8 +196,9 @@ const rv32i = RiscVExtension(
           base: MicroOpField.rs1,
           size: MicroOpMemSize.half,
           unsigned: false,
-          dest: MicroOpField.rd,
+          dest: MicroOpField.rs2,
         ),
+        WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.rs2),
         UpdatePCMicroOp(MicroOpField.pc, offset: 4),
       ],
     ),

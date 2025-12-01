@@ -59,17 +59,18 @@ class RiverSoCEmulator {
     for (final core in _cores) core.csrs.increment();
   }
 
-  Map<int, int> runPipelines(Map<int, int> pcs) {
-    for (final core in _cores) {
-      var pc = pcs[core.config.hartId] ?? core.config.resetVector;
-      pc = core.runPipeline(pc);
-      pcs[core.config.hartId] = pc;
-    }
-
-    return pcs;
+  Future<Map<int, int>> runPipelines(Map<int, int> pcs) async {
+    return Map.fromEntries(
+      await Future.wait(
+        cores.map((core) async {
+          var pc = pcs[core.config.hartId] ?? core.config.resetVector;
+          return MapEntry(core.config.hartId, await core.runPipeline(pc));
+        }),
+      ),
+    );
   }
 
-  Map<int, int> run(Map<int, int> pcs) {
+  Future<Map<int, int>> run(Map<int, int> pcs) {
     increment();
     return runPipelines(pcs);
   }

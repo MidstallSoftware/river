@@ -10,6 +10,11 @@ class SramEmulator extends DeviceEmulator {
   SramEmulator(super.config) : data = List.filled(config.mmap!.size, 0);
 
   @override
+  void reset() {
+    data.fillRange(0, data.length, 0);
+  }
+
+  @override
   DeviceAccessorEmulator? get memAccessor => SramAccessorEmulator(this);
 
   @override
@@ -28,16 +33,17 @@ class SramAccessorEmulator extends DeviceAccessorEmulator {
   SramAccessorEmulator(this.sram) : super(sram.config.accessor!);
 
   @override
-  int read(int addr, int width) {
-    return sram.data
+  Future<int> read(int addr, int width) {
+    int value = sram.data
         .getRange(addr, addr + width)
         .toList()
         .reversed
         .fold(0, (v, i) => (v << 8) | (i & 0xFF));
+    return Future.value(value);
   }
 
   @override
-  void write(int addr, int value, int width) {
+  Future<void> write(int addr, int value, int width) async {
     for (int i = 0; i < width; i++) {
       final byte = (value >> (8 * i)) & 0xFF;
 

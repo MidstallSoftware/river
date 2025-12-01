@@ -5,7 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:river/river.dart';
 import 'package:river_emulator/river_emulator.dart';
 
-void main(List<String> arguments) {
+Future<void> main(List<String> arguments) async {
   var parser = ArgParser();
   parser.addOption(
     'soc',
@@ -63,7 +63,7 @@ void main(List<String> arguments) {
 
     if (socChoice == null) {
       print('Invalid argument for soc option');
-      return;
+      return Future.value();
     }
   } else {
     platformChoice = RiverPlatformChoice.getChoice(args.option('platform')!);
@@ -73,7 +73,7 @@ void main(List<String> arguments) {
       print(
         "Platform's SoC and the value given for \"--soc\" do not align, unable to handle...",
       );
-      return;
+      return Future.value();
     }
   }
 
@@ -144,7 +144,6 @@ void main(List<String> arguments) {
 
   Map<int, int> pcs = {};
   while (true) {
-    pcs = emulator.soc.run(pcs);
-    print('$emulator $pcs');
+    pcs = await emulator.soc.run(pcs);
   }
 }

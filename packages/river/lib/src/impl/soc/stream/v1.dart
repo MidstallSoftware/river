@@ -50,7 +50,7 @@ class StreamV1SoC extends RiverSoC {
     Device.simple(
       name: 'plic',
       compatible: 'riscv,plic0',
-      range: const BusAddressRange(0x0C000000, 0x00400000),
+      range: const BusAddressRange(0x04000000, 0x4000000),
       fields: {
         0x000000: DeviceField('priority', 4),
         0x000100: DeviceField('pending', 4),

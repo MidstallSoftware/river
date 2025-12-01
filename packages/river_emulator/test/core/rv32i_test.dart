@@ -29,122 +29,124 @@ void main() {
       pc = config.resetVector;
     });
 
-    void writeWord(int addr, int value) =>
+    Future<void> writeWord(int addr, int value) =>
         core.mmu.write(addr, value, MicroOpMemSize.word.bytes);
 
-    int readWord(int addr) => core.mmu.read(addr, MicroOpMemSize.word.bytes);
+    Future<int> readWord(int addr) =>
+        core.mmu.read(addr, MicroOpMemSize.word.bytes);
 
-    void writeDword(int addr, int value) =>
+    Future<void> writeDword(int addr, int value) =>
         core.mmu.write(addr, value, MicroOpMemSize.dword.bytes);
 
-    int readDword(int addr) => core.mmu.read(addr, MicroOpMemSize.dword.bytes);
+    Future<int> readDword(int addr) =>
+        core.mmu.read(addr, MicroOpMemSize.dword.bytes);
 
-    test('addi increments register', () {
+    test('addi increments register', () async {
       core.reset();
 
       final instr = 0x00A00293;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x5], equals(10));
       expect(nextPc, pc + 4);
     });
 
-    test('add performs register addition', () {
+    test('add performs register addition', () async {
       core.reset();
 
       core.xregs[Register.x5] = 7;
       core.xregs[Register.x6] = 9;
 
       final instr = 0x005303B3;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x7], equals(16));
       expect(nextPc, pc + 4);
     });
 
-    test('lw loads from memory', () {
+    test('lw loads from memory', () async {
       core.reset();
 
       core.xregs[Register.x5] = 0x20;
-      writeWord(0x24, 0xDEADBEEF);
+      await writeWord(0x24, 0xDEADBEEF);
 
       final instr = 0x0042A303;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x6], equals(0xDEADBEEF));
       expect(nextPc, pc + 4);
     });
 
-    test('sw stores to memory', () {
+    test('sw stores to memory', () async {
       core.reset();
 
       core.xregs[Register.x5] = 0x20;
       core.xregs[Register.x6] = 0xCAFEBABE;
 
       const instr = 0x0062A223;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
-      expect(readWord(0x24), equals(0xCAFEBABE));
+      expect(await readWord(0x24), equals(0xCAFEBABE));
       expect(nextPc, pc + 4);
     });
 
-    test('beq takes branch when equal', () {
+    test('beq takes branch when equal', () async {
       core.reset();
 
       core.xregs[Register.x5] = 5;
       core.xregs[Register.x6] = 5;
 
       const instr = 0x00628463;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(nextPc, equals(pc + 8));
     });
 
-    test('beq does not branch when not equal', () {
+    test('beq does not branch when not equal', () async {
       core.reset();
 
       core.xregs[Register.x5] = 5;
       core.xregs[Register.x6] = 7;
 
       const instr = 0x00628463;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(nextPc, equals(pc + 4));
     });
 
-    test('lui loads upper immediate', () {
+    test('lui loads upper immediate', () async {
       core.reset();
 
       const instr = 0x123452B7;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x5], equals(0x12345000));
       expect(nextPc, equals(pc + 4));
     });
 
-    test('jal writes ra and jumps', () {
+    test('jal writes ra and jumps', () async {
       core.reset();
 
       const instr = 0x100002EF;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x5], equals(pc + 4));
       expect(nextPc, equals(pc + 0x100));
     });
 
-    test('auipc adds immediate to PC', () {
+    test('auipc adds immediate to PC', () async {
       const instr = 0x00010297;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x5], equals(pc + 0x10000));
       expect(nextPc, equals(pc + 4));
     });
 
-    test('slti sets when less-than immediate', () {
+    test('slti sets when less-than immediate', () async {
       core.xregs[Register.x4] = 5;
 
       const instr = 0x00A22293;
-      final nextPc = core.cycle(pc, instr);
+      final nextPc = await core.cycle(pc, instr);
 
       expect(core.xregs[Register.x5], equals(1));
       expect(nextPc, equals(pc + 4));

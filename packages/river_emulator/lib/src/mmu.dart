@@ -23,7 +23,7 @@ class MmuEmulator {
     if (config.hasPaging) {
       _pagingEnabled = value;
     } else {
-      throw TrapException.illegalInstruction();
+      throw TrapException.illegalInstruction(StackTrace.current);
     }
   }
 
@@ -33,16 +33,17 @@ class MmuEmulator {
     if (config.hasPaging) {
       _pageTable = value;
     } else {
-      throw TrapException.illegalInstruction();
+      throw TrapException.illegalInstruction(StackTrace.current);
     }
   }
 
   void configure(int modeId, int ppn) {
     final pmode =
-        PagingMode.fromId(modeId) ?? (throw TrapException.illegalInstruction());
+        PagingMode.fromId(modeId) ??
+        (throw TrapException.illegalInstruction(StackTrace.current));
 
     if (!pmode.isSupported(config.mxlen)) {
-      throw TrapException.illegalInstruction();
+      throw TrapException.illegalInstruction(StackTrace.current);
     }
 
     mode = pmode;
@@ -56,13 +57,13 @@ class MmuEmulator {
     _pageTable = 0;
   }
 
-  int translate(
+  Future<int> translate(
     int addr,
     MemoryAccess access, {
     PrivilegeMode privilege = PrivilegeMode.machine,
     bool sum = false,
     bool mxr = false,
-  }) {
+  }) async {
     if (!pagingEnabled || mode == PagingMode.bare) return addr;
 
     sum = sum && config.hasSum;
@@ -80,7 +81,7 @@ class MmuEmulator {
     var i = levels - 1;
 
     while (true) {
-      final pte = read(
+      final pte = await read(
         a + vpn[i] * config.mxlen.width,
         config.mxlen.width,
         pageTranslate: false,
@@ -97,6 +98,7 @@ class MmuEmulator {
         throw TrapException(
           access == MemoryAccess.read ? Trap.loadAccess : Trap.storeAccess,
           addr,
+          StackTrace.current,
         );
       }
 
@@ -104,6 +106,7 @@ class MmuEmulator {
         throw TrapException(
           access == MemoryAccess.read ? Trap.loadAccess : Trap.storeAccess,
           addr,
+          StackTrace.current,
         );
       }
 
@@ -113,6 +116,7 @@ class MmuEmulator {
           throw TrapException(
             access == MemoryAccess.read ? Trap.loadAccess : Trap.storeAccess,
             addr,
+            StackTrace.current,
           );
         }
       }
@@ -162,16 +166,16 @@ class MmuEmulator {
     }
   }
 
-  int read(
+  Future<int> read(
     int addr,
     int width, {
     PrivilegeMode privilege = PrivilegeMode.machine,
     bool pageTranslate = true,
     bool sum = false,
     bool mxr = false,
-  }) {
+  }) async {
     if (pageTranslate) {
-      addr = translate(
+      addr = await translate(
         addr,
         MemoryAccess.read,
         privilege: privilege,
@@ -186,17 +190,17 @@ class MmuEmulator {
 
       if (addr >= block.start && addr < block.end) {
         try {
-          return dev.read(addr - block.start, width);
+          return await dev.read(addr - block.start, width);
         } on TrapException catch (e) {
           throw e.relocate(block.start);
         }
       }
     }
 
-    throw TrapException(Trap.loadAccess, addr);
+    throw TrapException(Trap.loadAccess, addr, StackTrace.current);
   }
 
-  void write(
+  Future<void> write(
     int addr,
     int value,
     int width, {
@@ -204,9 +208,9 @@ class MmuEmulator {
     bool pageTranslate = true,
     bool sum = false,
     bool mxr = false,
-  }) {
+  }) async {
     if (pageTranslate) {
-      addr = translate(
+      addr = await translate(
         addr,
         MemoryAccess.write,
         privilege: privilege,
@@ -221,7 +225,7 @@ class MmuEmulator {
 
       if (addr >= block.start && addr < block.end) {
         try {
-          dev.write(addr - block.start, value, width);
+          await dev.write(addr - block.start, value, width);
         } on TrapException catch (e) {
           throw e.relocate(block.start);
         }
@@ -229,7 +233,7 @@ class MmuEmulator {
       }
     }
 
-    throw TrapException(Trap.storeAccess, addr);
+    throw TrapException(Trap.storeAccess, addr, StackTrace.current);
   }
 
   @override

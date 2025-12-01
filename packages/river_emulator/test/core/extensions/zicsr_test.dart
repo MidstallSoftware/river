@@ -35,13 +35,12 @@ void main() {
       void write(CsrAddress csr, int v) =>
           core.csrs.write(csr.address, v, core);
 
-      test("csrrw: atomic swap (rd=old, CSR=new)", () {
+      test("csrrw: atomic swap (rd=old, CSR=new)", () async {
         write(CsrAddress.mscratch, 0xAAAA);
         core.xregs[Register.x5] = 0x1234;
 
         final csrrw = 0x34029373;
-
-        final newPc = core.cycle(pc, csrrw);
+        final newPc = await core.cycle(pc, csrrw);
 
         expect(core.xregs[Register.x6], 0xAAAA);
         expect(read(CsrAddress.mscratch), 0x1234);

@@ -11,7 +11,12 @@ void main() {
     late RiverSoCEmulator soc;
 
     setUp(() {
-      soc = RiverSoCEmulator(config);
+      soc = RiverSoCEmulator(
+        config,
+        deviceOptions: {
+          'uart0': {'input.empty': 'true', 'output.empty': 'true'},
+        },
+      );
     });
 
     test('Configure', () {
@@ -21,11 +26,12 @@ void main() {
       expect(soc.cores.length, 1);
     });
 
-    test('Read data', () {
+    test('Read data', () async {
       final soc = RiverSoCEmulator(
         config,
         deviceOptions: {
           'bootrom': {'bytes': '002081B3'},
+          'uart0': {'input.empty': 'true', 'output.empty': 'true'},
         },
       );
 
@@ -33,16 +39,17 @@ void main() {
 
       soc.reset();
       expect(
-        soc.cores[0].read(mmap.start, soc.cores[0].config.mxlen.width),
+        await soc.cores[0].read(mmap.start, soc.cores[0].config.mxlen.width),
         0x002081B3,
       );
     });
 
-    test('Reset & execute', () {
+    test('Reset & execute', () async {
       final soc = RiverSoCEmulator(
         config,
         deviceOptions: {
           'bootrom': {'bytes': '00A08293'},
+          'uart0': {'input.empty': 'true', 'output.empty': 'true'},
         },
       );
 
@@ -52,7 +59,7 @@ void main() {
 
       soc.cores[0].xregs[Register.x1] = 12;
 
-      final pc = soc.runPipelines({})[0]!;
+      final pc = (await soc.runPipelines({}))[0]!;
       expect(config.cores[0].resetVector, mmap!.start);
       expect(config.cores[0].resetVector, pc - 4);
       expect(soc.cores[0].xregs[Register.x5], 22);

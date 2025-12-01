@@ -34,8 +34,8 @@ void main() {
     late int pc;
 
     setUp(() {
-      inputController = StreamController<List<int>>();
-      outputController = StreamController<List<int>>();
+      inputController = StreamController<List<int>>(sync: true);
+      outputController = StreamController<List<int>>(sync: true);
       uartOutput = [];
 
       outputController.stream.listen(uartOutput.addAll);
@@ -64,33 +64,44 @@ void main() {
       pc = config.resetVector;
     });
 
-    void writeWord(int addr, int value) =>
+    Future<void> writeWord(int addr, int value) =>
         core.mmu.write(addr, value, MicroOpMemSize.word.bytes);
 
-    int readWord(int addr) => core.mmu.read(addr, MicroOpMemSize.word.bytes);
+    Future<int> readWord(int addr) =>
+        core.mmu.read(addr, MicroOpMemSize.word.bytes);
 
     void writeDword(int addr, int value) =>
         core.mmu.write(addr, value, MicroOpMemSize.dword.bytes);
 
-    int readDword(int addr) => core.mmu.read(addr, MicroOpMemSize.dword.bytes);
+    Future<int> readDword(int addr) =>
+        core.mmu.read(addr, MicroOpMemSize.dword.bytes);
 
-    void exec(List<int> prog) {
+    Future<void> exec(List<int> prog) async {
+      sram.reset();
+
       int i = 0;
-      while (i < prog.length) {
-        final instr = prog[i];
+      for (final p in prog) {
+        await writeWord(i + config.resetVector, p);
+        i += 4;
+      }
+
+      int pc = config.resetVector;
+      while (true) {
+        final instr = await core.fetch(pc);
         if (instr == 0x13) break;
 
-        final pc = core.cycle(i * 4, instr);
-        i = pc ~/ 4;
+        pc = await core.cycle(pc, instr);
       }
     }
 
-    test('Reset', () {
+    test('Reset', () async {
       core.reset();
       uart.reset();
       uartOutput.clear();
 
-      exec(kInitProg);
+      final prog = [...kInitProg, 0x00000013];
+
+      await exec(prog);
 
       expect(uart.enabled, true);
       expect(uart.divisor, 3);
@@ -101,15 +112,40 @@ void main() {
       uart.reset();
       uartOutput.clear();
 
-      final prog = [...kInitProg, 0x04100313, 0x00628023];
+      final prog = [...kInitProg, 0x04100313, 0x00628023, 0x00000013];
 
-      exec(prog);
-
+      await exec(prog);
       await Future.delayed(Duration.zero);
 
       expect(uart.enabled, true);
       expect(uart.divisor, 3);
       expect(String.fromCharCodes(uartOutput), 'A');
     });
+
+    test('Read A', () async {
+      core.reset();
+      uart.reset();
+      uartOutput.clear();
+
+      inputController.add('A'.codeUnits);
+
+      final prog = [
+        ...kInitProg,
+        0x0082a303,
+        0x00437393,
+        0xfe038ce3,
+        0x00428303,
+        0x00628023,
+        0x00000013,
+        0xffdff06f,
+      ];
+
+      await exec(prog);
+      await Future.delayed(Duration.zero);
+
+      expect(uart.enabled, true);
+      expect(uart.divisor, 3);
+      expect(String.fromCharCodes(uartOutput), 'A');
+    }, timeout: Timeout(Duration(minutes: 1)));
   });
 }

@@ -9,19 +9,29 @@ import 'int.dart';
 class AbortException extends TrapException {
   final String message;
 
-  const AbortException(super.trap, this.message, [super.tval = null]);
-  const AbortException.illegalInstruction(this.message)
-    : super(Trap.illegal, null);
+  const AbortException(
+    super.trap,
+    this.message, [
+    super.tval = null,
+    super.stack = null,
+  ]);
+  const AbortException.illegalInstruction(
+    this.message, [
+    StackTrace? stack = null,
+  ]) : super(Trap.illegal, null, stack);
 
   @override
-  String toString() => 'AbortException($trap, "$message", $tval)';
+  String toString() => 'AbortException($trap, "$message", $tval, $stack)';
 }
 
 class TrapException implements Exception {
   final Trap trap;
+  final StackTrace? stack;
 
-  const TrapException(this.trap, [this.tval = null]);
-  const TrapException.illegalInstruction() : trap = Trap.illegal, tval = null;
+  const TrapException(this.trap, [this.tval = null, this.stack = null]);
+  const TrapException.illegalInstruction([this.stack = null])
+    : trap = Trap.illegal,
+      tval = null;
 
   final int? tval;
 
@@ -29,7 +39,7 @@ class TrapException implements Exception {
     switch (trap) {
       case Trap.loadAccess:
       case Trap.storeAccess:
-        return TrapException(trap, offset + (tval ?? 0));
+        return TrapException(trap, offset + (tval ?? 0), stack);
       default:
         return this;
     }
@@ -37,7 +47,7 @@ class TrapException implements Exception {
 
   @override
   String toString() =>
-      'TrapException($trap, ${tval != null ? '0x' + tval!.toRadixString(16) : null})';
+      'TrapException($trap, ${tval != null ? '0x' + tval!.toRadixString(16) : null}, $stack)';
 }
 
 class RiverCoreEmulatorState {
@@ -203,10 +213,10 @@ class RiverCoreEmulator {
     return null;
   }
 
-  RiverCoreEmulatorState execute(int pc, InstructionType instr) {
+  Future<RiverCoreEmulatorState> execute(int pc, InstructionType instr) async {
     final op = findOperationByInstruction(instr)!;
     var state = RiverCoreEmulatorState(pc, instr, xregs[Register.x2] ?? 0);
-    state = _innerExecute(state, op);
+    state = await _innerExecute(state, op);
     xregs[Register.x2] = state.sp;
     return state;
   }
@@ -325,6 +335,7 @@ class RiverCoreEmulator {
     if (tvec == 0)
       throw AbortException.illegalInstruction(
         'Double fault due to $tvecCsr being invalid ($tvec): $e',
+        e.stack,
       );
 
     final base = tvec & ~0x3;
@@ -364,44 +375,50 @@ class RiverCoreEmulator {
     return mode;
   }
 
-  int translate(int addr, MemoryAccess access) {
+  Future<int> translate(int addr, MemoryAccess access) async {
     final eff = _effectiveMemPrivilege();
 
     int mstatus = csrs.read(CsrAddress.mstatus.address, this);
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    return mmu.translate(addr, access, privilege: eff, sum: sum, mxr: mxr);
+    return await mmu.translate(
+      addr,
+      access,
+      privilege: eff,
+      sum: sum,
+      mxr: mxr,
+    );
   }
 
-  int fetch(int pc) {
-    final phys = translate(pc, MemoryAccess.instr);
+  Future<int> fetch(int pc) async {
+    final phys = await translate(pc, MemoryAccess.instr);
 
     final mstatus = csrs.read(CsrAddress.mstatus.address, this);
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    return mmu.read(
+    return await mmu.read(phys, 4, pageTranslate: false, sum: sum, mxr: mxr);
+  }
+
+  Future<int> read(int addr, int width) async {
+    final phys = await translate(addr, MemoryAccess.read);
+
+    final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+    final mxr = ((mstatus >> 19) & 1) != 0;
+    final sum = ((mstatus >> 18) & 1) != 0;
+
+    return await mmu.read(
       phys,
-      config.mxlen.width,
+      width,
       pageTranslate: false,
       sum: sum,
       mxr: mxr,
     );
   }
 
-  int read(int addr, int width) {
-    final phys = translate(addr, MemoryAccess.read);
-
-    final mstatus = csrs.read(CsrAddress.mstatus.address, this);
-    final mxr = ((mstatus >> 19) & 1) != 0;
-    final sum = ((mstatus >> 18) & 1) != 0;
-
-    return mmu.read(phys, width, pageTranslate: false, sum: sum, mxr: mxr);
-  }
-
-  void write(int addr, int value, int width) {
-    final phys = translate(addr, MemoryAccess.write);
+  Future<void> write(int addr, int value, int width) async {
+    final phys = await translate(addr, MemoryAccess.write);
 
     if (_reservationSet.isNotEmpty) {
       if (!_reservationSet.contains(phys)) {
@@ -415,15 +432,25 @@ class RiverCoreEmulator {
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    mmu.write(phys, value, width, pageTranslate: false, sum: sum, mxr: mxr);
+    await mmu.write(
+      phys,
+      value,
+      width,
+      pageTranslate: false,
+      sum: sum,
+      mxr: mxr,
+    );
   }
 
-  RiverCoreEmulatorState _innerExecute(
+  Future<RiverCoreEmulatorState> _innerExecute(
     RiverCoreEmulatorState state,
     Operation op,
-  ) {
+  ) async {
     if (!op.allowedLevels.contains(mode)) {
-      state.pc = trap(state.pc, TrapException.illegalInstruction());
+      state.pc = trap(
+        state.pc,
+        TrapException.illegalInstruction(StackTrace.current),
+      );
       return state;
     }
 
@@ -645,21 +672,26 @@ class RiverCoreEmulator {
             throw 'Invalid ALU function ${mop.funct}';
         }
       } else if (mop is UpdatePCMicroOp) {
-        final value = mop.offsetField != null
-            ? state.readField(mop.offsetField!)
-            : mop.offset;
-        state.pc += value;
+        int value = mop.offset;
+        if (mop.offsetField != null) value = state.readField(mop.offsetField!);
+        if (mop.offsetSource != null)
+          value = state.readSource(mop.offsetSource!);
+        if (mop.align) value &= ~1;
+        state.pc = (mop.absolute ? 0 : state.pc) + value;
       } else if (mop is MemLoadMicroOp) {
         final base = state.readField(mop.base);
         final addr = base + state.imm;
 
         if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
-          state.pc = trap(state.pc, TrapException(Trap.misalignedLoad, addr));
+          state.pc = trap(
+            state.pc,
+            TrapException(Trap.misalignedLoad, addr, StackTrace.current),
+          );
           return state;
         }
 
         try {
-          final loaded = read(addr, mop.size.bytes);
+          final loaded = await read(addr, mop.size.bytes);
 
           final finalValue = mop.unsigned
               ? loaded.toUnsigned(mop.size.bits)
@@ -676,12 +708,15 @@ class RiverCoreEmulator {
         final addr = base + state.imm;
 
         if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
-          state.pc = trap(state.pc, TrapException(Trap.misalignedStore, addr));
+          state.pc = trap(
+            state.pc,
+            TrapException(Trap.misalignedStore, addr, StackTrace.current),
+          );
           return state;
         }
 
         try {
-          write(addr, value.toUnsigned(mop.size.bits), mop.size.bytes);
+          await write(addr, value.toUnsigned(mop.size.bits), mop.size.bytes);
         } on TrapException catch (e) {
           state.pc = trap(state.pc, e);
           return state;
@@ -717,12 +752,26 @@ class RiverCoreEmulator {
           return state;
         }
       } else if (mop is WriteLinkRegisterMicroOp) {
-        xregs[mop.link.reg] = state.pc + mop.pcOffset;
+        final value = state.pc + mop.pcOffset;
+
+        Register reg = Register.x0;
+        if (mop.link.reg != null) {
+          reg = mop.link.reg!;
+        } else if (mop.link.source != null) {
+          reg = Register.values[state.readSource(mop.link.source!)];
+        }
+
+        if (reg != Register.x0) {
+          xregs[reg] = value;
+        }
       } else if (mop is ReadCsrMicroOp) {
         final reg = state.readField(mop.source);
 
         if (mode == PrivilegeMode.user) {
-          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          state.pc = trap(
+            state.pc,
+            TrapException.illegalInstruction(StackTrace.current),
+          );
           return state;
         }
 
@@ -738,7 +787,10 @@ class RiverCoreEmulator {
         final reg = state.readField(mop.field);
 
         if (mode == PrivilegeMode.user) {
-          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          state.pc = trap(
+            state.pc,
+            TrapException.illegalInstruction(StackTrace.current),
+          );
           return state;
         }
 
@@ -759,7 +811,9 @@ class RiverCoreEmulator {
 
                 final newMode =
                     PrivilegeMode.find(mpp) ??
-                    (throw TrapException.illegalInstruction());
+                    (throw TrapException.illegalInstruction(
+                      StackTrace.current,
+                    ));
 
                 final mpie = (mstatus >> 7) & 1;
                 mstatus = (mstatus & ~(1 << 3)) | (mpie << 3);
@@ -833,19 +887,22 @@ class RiverCoreEmulator {
         final addr = base + state.imm;
 
         if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
-          state.pc = trap(state.pc, TrapException(Trap.misalignedLoad, addr));
+          state.pc = trap(
+            state.pc,
+            TrapException(Trap.misalignedLoad, addr, StackTrace.current),
+          );
           return state;
         }
 
         try {
-          final loaded = read(addr, config.mxlen.width);
+          final loaded = await read(addr, config.mxlen.width);
 
           final value = loaded.toSigned(mop.size.bits);
 
           final rd = Register.values[state.readField(mop.dest)];
           xregs[rd] = value;
 
-          final phys = translate(addr, MemoryAccess.read);
+          final phys = await translate(addr, MemoryAccess.read);
           _reservationSet
             ..clear()
             ..add(phys);
@@ -858,14 +915,17 @@ class RiverCoreEmulator {
         final addr = base + state.imm;
 
         if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
-          state.pc = trap(state.pc, TrapException(Trap.misalignedStore, addr));
+          state.pc = trap(
+            state.pc,
+            TrapException(Trap.misalignedStore, addr, StackTrace.current),
+          );
           return state;
         }
 
         final srcValue = state.readField(mop.src);
 
         try {
-          final phys = translate(addr, MemoryAccess.write);
+          final phys = await translate(addr, MemoryAccess.write);
 
           final hasReservation =
               _reservationSet.isNotEmpty && _reservationSet.contains(phys);
@@ -877,7 +937,7 @@ class RiverCoreEmulator {
             final mxr = ((mstatus >> 19) & 1) != 0;
             final sum = ((mstatus >> 18) & 1) != 0;
 
-            mmu.write(
+            await mmu.write(
               phys,
               srcValue.toUnsigned(mop.size.bits),
               config.mxlen.width,
@@ -907,20 +967,23 @@ class RiverCoreEmulator {
         final addr = base + state.imm;
 
         if (mop.size.bytes > 1 && (addr & (mop.size.bytes - 1)) != 0) {
-          state.pc = trap(state.pc, TrapException(Trap.misalignedLoad, addr));
+          state.pc = trap(
+            state.pc,
+            TrapException(Trap.misalignedLoad, addr, StackTrace.current),
+          );
           return state;
         }
 
         final srcRaw = state.readField(mop.src);
 
         try {
-          final phys = translate(addr, MemoryAccess.read);
+          final phys = await translate(addr, MemoryAccess.read);
 
           final mstatus = csrs.read(CsrAddress.mstatus.address, this);
           final mxr = ((mstatus >> 19) & 1) != 0;
           final sum = ((mstatus >> 18) & 1) != 0;
 
-          final loaded = mmu.read(
+          final loaded = await mmu.read(
             phys,
             config.mxlen.width,
             pageTranslate: false,
@@ -977,7 +1040,7 @@ class RiverCoreEmulator {
               break;
           }
 
-          mmu.write(
+          await mmu.write(
             phys,
             newVal,
             config.mxlen.width,
@@ -1025,7 +1088,10 @@ class RiverCoreEmulator {
         }
 
         if (!valid) {
-          state.pc = trap(state.pc, TrapException.illegalInstruction());
+          state.pc = trap(
+            state.pc,
+            TrapException.illegalInstruction(StackTrace.current),
+          );
           return state;
         }
       } else if (mop is SetFieldMicroOp) {
@@ -1044,19 +1110,19 @@ class RiverCoreEmulator {
     return state;
   }
 
-  int cycle(int pc, int instr) {
+  Future<int> cycle(int pc, int instr) async {
     final op = config.microcode.lookup(instr);
     if (op != null) {
       final ir = op.decode(instr);
       if (ir != null) {
         var state = RiverCoreEmulatorState(pc, ir, xregs[Register.x2] ?? 0);
-        state = _innerExecute(state, op);
+        state = await _innerExecute(state, op);
         xregs[Register.x2] = state.sp;
         return state.pc;
       }
     }
 
-    return trap(pc, TrapException.illegalInstruction());
+    return trap(pc, TrapException.illegalInstruction(StackTrace.current));
   }
 
   int? _nextPendingIrq() {
@@ -1086,7 +1152,7 @@ class RiverCoreEmulator {
     return delegated ? Trap.supervisorExternal : Trap.machineExternal;
   }
 
-  int runPipeline(int pc) {
+  Future<int> runPipeline(int pc) async {
     if (idle) return pc;
 
     final irq = _nextPendingIrq();
@@ -1104,9 +1170,9 @@ class RiverCoreEmulator {
     }
 
     try {
-      int instr = fetch(pc);
-      return cycle(pc, instr);
-    } on TrapException catch (e) {
+      int instr = await fetch(pc);
+      return await cycle(pc, instr);
+    } on TrapException catch (e, stack) {
       return trap(pc, e);
     }
   }
