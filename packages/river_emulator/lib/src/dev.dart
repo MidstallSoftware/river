@@ -14,6 +14,8 @@ class DeviceEmulator {
   void reset() {}
   void increment() {}
 
+  Map<int, bool> interrupts(int hart) => {};
+
   DeviceAccessorEmulator? get memAccessor {
     if (config.accessor != null && config.mmap != null)
       return DeviceFieldAccessorEmulator(this);

@@ -8,51 +8,147 @@ class UartEmulator extends DeviceEmulator {
   final Stream<List<int>> input;
   final StreamSink<List<int>> output;
 
-  final List<int> _inputBuffer;
+  final List<int> _rxFifo = [];
+  final List<int> _txFifo = [];
+
   late final StreamSubscription _inputSubscription;
 
-  bool enabled;
-  int divisor;
-  int error;
+  int dll = 0;
+  int dlm = 0;
+  int ier = 0;
+  int iir = 0x01;
+  int lcr = 0;
+  int mcr = 0;
+  int lsr = 0x60;
+  int msr = 0;
+  int scr = 0;
+  int fcr = 0;
 
-  UartEmulator(super.config, {required this.input, required this.output})
-    : enabled = false,
-      divisor = 0,
-      error = 0,
-      _inputBuffer = [] {
-    _inputSubscription = input.listen(_inputBuffer.addAll);
+  UartEmulator(super.config, {required this.input, required this.output}) {
+    _inputSubscription = input.listen((data) {
+      _rxFifo.addAll(data);
+      _updateLineStatus();
+      _updateIIR();
+    });
   }
+
+  bool get dlab => (lcr & 0x80) != 0;
+
+  int get divisor => (dlm << 8) | dll;
 
   int get baud {
     if (divisor == 0) return 0;
     return config.clock!.baseFreqHz ~/ divisor;
   }
 
-  bool get rxReady => _inputBuffer.isNotEmpty;
+  void _updateLineStatus() {
+    lsr = 0;
 
-  int get rx {
-    if (_inputBuffer.isEmpty) return -1;
-    return _inputBuffer.removeAt(0) & 0xFF;
+    if (_rxFifo.isNotEmpty) lsr |= 0x01;
+    if (_txFifo.isEmpty) lsr |= 0x20;
+
+    lsr |= 0x40;
   }
 
-  set tx(int byte) {
-    output.add([byte & 0xFF]);
+  Future<void> flush() async {
+    while (_txFifo.isNotEmpty) await Future.delayed(Duration.zero);
+    await Future.delayed(Duration.zero);
+  }
+
+  void _updateIIR() {
+    if ((ier & 0x04) != 0 && (_lineStatusInterrupt())) {
+      iir = 0x06;
+      return;
+    }
+
+    if ((ier & 0x01) != 0 && _rxFifo.isNotEmpty) {
+      iir = 0x04;
+      return;
+    }
+
+    if ((ier & 0x02) != 0 && (_txFifo.isEmpty)) {
+      iir = 0x02;
+      return;
+    }
+
+    iir = 0x01;
+  }
+
+  bool _lineStatusInterrupt() {
+    // Typically parity/framing/overrun/break errors
+    // For now: no errors
+    return false;
+  }
+
+  Duration txDelay() {
+    if (baud == 0) return Duration.zero;
+    final seconds = 10 / baud;
+    return Duration(microseconds: (seconds * 1e6).toInt());
+  }
+
+  int _readRBR() {
+    if (_rxFifo.isEmpty) {
+      return 0;
+    }
+    final byte = _rxFifo.removeAt(0);
+    _updateLineStatus();
+    _updateIIR();
+    return byte;
+  }
+
+  void _writeTHR(int value) {
+    _txFifo.add(value & 0xFF);
+    _updateLineStatus();
+    _updateIIR();
+
+    if (_txFifo.isNotEmpty) {
+      _scheduleNextTx();
+    }
+  }
+
+  void _scheduleNextTx() {
+    if (_txFifo.isEmpty) return;
+
+    final byte = _txFifo.first;
+
+    Future.delayed(txDelay(), () {
+      output.add([byte]);
+      _txFifo.removeAt(0);
+
+      _updateLineStatus();
+      _updateIIR();
+
+      if (_txFifo.isNotEmpty) {
+        _scheduleNextTx();
+      }
+    });
+  }
+
+  @override
+  Map<int, bool> interrupts(int hartId) {
+    final pending = (iir & 0x01) == 0;
+    return {0: pending};
   }
 
   @override
   void reset() {
-    enabled = false;
-    divisor = 0;
-    error = 0;
-    _inputBuffer.clear();
+    dll = 0;
+    dlm = 0;
+    ier = 0;
+    iir = 0x01;
+    lcr = 0;
+    mcr = 0;
+    lsr = 0x60;
+    msr = 0;
+    scr = 0;
+    fcr = 0;
+
+    _rxFifo.clear();
+    _txFifo.clear();
   }
 
   @override
   DeviceAccessorEmulator? get memAccessor => UartAccessorEmulator(this);
-
-  @override
-  String toString() =>
-      'UartEmulator(name: ${config.name}, address: ${config.range!.start.toRadixString(16)}, enabled: $enabled, divisor: $divisor, baud: $baud, rxReady: $rxReady)';
 
   static DeviceEmulator create(
     Device config,
@@ -89,7 +185,6 @@ class UartEmulator extends DeviceEmulator {
         stdin.echoMode = false;
         stdin.lineMode = false;
       }
-
       input = stdin;
     }
 
@@ -100,39 +195,66 @@ class UartEmulator extends DeviceEmulator {
 class UartAccessorEmulator extends DeviceFieldAccessorEmulator<UartEmulator> {
   UartAccessorEmulator(super.device);
 
+  @override
   Future<int> readPath(String name) async {
     switch (name) {
-      case 'rx':
-        return device.rx;
-      case 'status':
+      case 'rbr_thr_dll':
         await Future.delayed(Duration.zero);
-        return RiverUart.status.encode({
-          'enable': device.enabled ? 1 : 0,
-          'txReady': 1,
-          'rxReady': device.rxReady ? 1 : 0,
-          'error': device.error,
-        });
-      case 'divisor':
-        return device.baud;
-      default:
-        return super.readPath(name);
+        return device.dlab ? device.dll : device._readRBR();
+      case 'ier_dlm':
+        return device.dlab ? device.dlm : device.ier;
+      case 'iir_fcr':
+        return device.iir | (device.fcr & 0xC0);
+      case 'lcr':
+        return device.lcr;
+      case 'mcr':
+        return device.mcr;
+      case 'lsr':
+        await Future.delayed(Duration.zero);
+        return device.lsr;
+      case 'msr':
+        return device.msr;
+      case 'scr':
+        return device.scr;
     }
+
+    return 0;
   }
 
+  @override
   Future<void> writePath(String name, int value) async {
+    value &= 0xFF;
+
     switch (name) {
-      case 'tx':
-        device.tx = value & 0xFF;
+      case 'rbr_thr_dll':
+        if (device.dlab)
+          device.dll = value;
+        else
+          device._writeTHR(value);
         break;
-      case 'status':
-        final status = RiverUart.status.decode(value);
-        device.enabled = status['enable'] == 1;
+      case 'ier_dlm':
+        if (device.dlab)
+          device.dlm = value;
+        else
+          device.ier = value;
+        device._updateIIR();
         break;
-      case 'divisor':
-        device.divisor = value;
+      case 'iir_fcr':
+        device.fcr = value;
+        if ((value & 0x02) != 0) device._rxFifo.clear();
+        if ((value & 0x04) != 0) device._txFifo.clear();
+        device._updateLineStatus();
+        device._updateIIR();
         break;
-      default:
-        super.writePath(name, value);
+      case 'lcr':
+        device.lcr = value;
+        device._updateLineStatus();
+        break;
+      case 'mcr':
+        device.mcr = value;
+        break;
+      case 'scr':
+        device.scr = value;
         break;
     }
   }

@@ -59,6 +59,35 @@ class RiverSoCEmulator {
     for (final core in _cores) core.csrs.increment();
   }
 
+  void interrupts() {
+    for (final dev in _devices) {
+      for (final core in _cores) {
+        final interrupts = dev.interrupts(core.config.hartId);
+
+        for (final entry in interrupts.entries) {
+          final id = entry.key;
+          final value = entry.value;
+          final irq = dev.config.interrupts[id];
+
+          for (final ctrl in core.interrupts) {
+            final line = ctrl.config.lines
+                .where((l) => l.irq == irq)
+                .firstOrNull;
+
+            if (line == null) continue;
+
+            if (line.target != '/cpu${core.config.hartId}') continue;
+
+            if (value)
+              ctrl.raise(line.source, line.irq);
+            else
+              ctrl.lower(line.source, line.irq);
+          }
+        }
+      }
+    }
+  }
+
   Future<Map<int, int>> runPipelines(Map<int, int> pcs) async {
     return Map.fromEntries(
       await Future.wait(
@@ -70,9 +99,11 @@ class RiverSoCEmulator {
     );
   }
 
-  Future<Map<int, int>> run(Map<int, int> pcs) {
+  Future<Map<int, int>> run(Map<int, int> pcs) async {
     increment();
-    return runPipelines(pcs);
+    pcs = await runPipelines(pcs);
+    interrupts();
+    return pcs;
   }
 
   @override

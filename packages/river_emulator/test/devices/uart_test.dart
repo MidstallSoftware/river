@@ -12,16 +12,34 @@ import '../constants.dart';
  * ```
  * li x5, 0x20000
  *
- * /* Set divisor to 3 */
- * li x6, 3
- * sb x6, 12(x5)
+ * /* Set LCR, DLAB=1 */
+ * li x6, 0x80
+ * sb x6, 3(x5)
  *
- * /* Set enable bit in status */
- * li x6, 1 << 0
+ * /* Set DLL=3 */
+ * li x6, 3
  * sb x6, 8(x5)
+ *
+ * /* Set DLM=0 */
+ * li x6, 0
+ * sb x6, 1(x5)
+ *
+ * /* Set LCR=3, DLAB=0, 8N1 */
+ * li x6, 0x3,
+ * sb x6, 3(x5)
  * ```
  */
-const kInitProg = [0x000202b7, 0x00300313, 0x00628623, 0x00100313, 0x00628423];
+const kInitProg = [
+  0x000202b7,
+  0x08000313,
+  0x006281a3,
+  0x00300313,
+  0x00628023,
+  0x00000313,
+  0x00628223,
+  0x00300313,
+  0x006281a3,
+];
 
 void main() {
   cpuTests('UART Device', (config) {
@@ -92,6 +110,8 @@ void main() {
 
         pc = await core.cycle(pc, instr);
       }
+
+      await uart.flush();
     }
 
     test('Reset', () async {
@@ -103,7 +123,7 @@ void main() {
 
       await exec(prog);
 
-      expect(uart.enabled, true);
+      expect(uart.lcr & 0x83, 0x03);
       expect(uart.divisor, 3);
     });
 
@@ -117,7 +137,7 @@ void main() {
       await exec(prog);
       await Future.delayed(Duration.zero);
 
-      expect(uart.enabled, true);
+      expect(uart.lcr & 0x83, 0x03);
       expect(uart.divisor, 3);
       expect(String.fromCharCodes(uartOutput), 'A');
     });
@@ -131,10 +151,10 @@ void main() {
 
       final prog = [
         ...kInitProg,
-        0x0082a303,
-        0x00437393,
+        0x00528303,
+        0x00137393,
         0xfe038ce3,
-        0x00428303,
+        0x00028303,
         0x00628023,
         0x00000013,
         0xffdff06f,
@@ -143,7 +163,7 @@ void main() {
       await exec(prog);
       await Future.delayed(Duration.zero);
 
-      expect(uart.enabled, true);
+      expect(uart.lcr & 0x83, 0x03);
       expect(uart.divisor, 3);
       expect(String.fromCharCodes(uartOutput), 'A');
     }, timeout: Timeout(Duration(minutes: 1)));
