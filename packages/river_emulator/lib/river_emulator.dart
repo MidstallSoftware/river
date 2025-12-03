@@ -1,5 +1,6 @@
 library;
 
+export 'src/cache.dart';
 export 'src/core.dart';
 export 'src/csr.dart';
 export 'src/dev.dart';

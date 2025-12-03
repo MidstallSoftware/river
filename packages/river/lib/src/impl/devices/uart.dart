@@ -25,7 +25,7 @@ class RiverUart extends Device {
            5: DeviceField('lsr', 1),
            6: DeviceField('msr', 1),
            7: DeviceField('scr', 1),
-         }),
+         }, type: DeviceAccessorType.io),
        );
 
   static const lcr = BitStruct({

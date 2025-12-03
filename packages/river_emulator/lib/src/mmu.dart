@@ -166,9 +166,30 @@ class MmuEmulator {
     }
   }
 
-  Future<int> read(
-    int addr,
-    int width, {
+  Future<bool> canCache(
+    int addr, {
+    PrivilegeMode privilege = PrivilegeMode.machine,
+    bool pageTranslate = true,
+    bool sum = false,
+    bool mxr = false,
+  }) async {
+    final entry = await getDevice(
+      addr,
+      privilege: privilege,
+      pageTranslate: pageTranslate,
+      sum: sum,
+      mxr: mxr,
+    );
+
+    if (entry != null) {
+      return entry.value.config.type == DeviceAccessorType.memory;
+    }
+
+    return false;
+  }
+
+  Future<MapEntry<MemoryBlock, DeviceAccessorEmulator>?> getDevice(
+    int addr, {
     PrivilegeMode privilege = PrivilegeMode.machine,
     bool pageTranslate = true,
     bool sum = false,
@@ -186,14 +207,38 @@ class MmuEmulator {
 
     for (final entry in devices.entries) {
       final block = entry.key;
-      final dev = entry.value;
 
       if (addr >= block.start && addr < block.end) {
-        try {
-          return await dev.read(addr - block.start, width);
-        } on TrapException catch (e) {
-          throw e.relocate(block.start);
-        }
+        return entry;
+      }
+    }
+
+    return null;
+  }
+
+  Future<int> read(
+    int addr,
+    int width, {
+    PrivilegeMode privilege = PrivilegeMode.machine,
+    bool pageTranslate = true,
+    bool sum = false,
+    bool mxr = false,
+  }) async {
+    final entry = await getDevice(
+      addr,
+      privilege: privilege,
+      pageTranslate: pageTranslate,
+      sum: sum,
+      mxr: mxr,
+    );
+
+    if (entry != null) {
+      final block = entry.key;
+      final dev = entry.value;
+      try {
+        return await dev.read(addr - block.start, width);
+      } on TrapException catch (e) {
+        throw e.relocate(block.start);
       }
     }
 
@@ -209,31 +254,49 @@ class MmuEmulator {
     bool sum = false,
     bool mxr = false,
   }) async {
-    if (pageTranslate) {
-      addr = await translate(
-        addr,
-        MemoryAccess.write,
+    final entry = await getDevice(
+      addr,
+      privilege: privilege,
+      pageTranslate: pageTranslate,
+      sum: sum,
+      mxr: mxr,
+    );
+
+    if (entry != null) {
+      final block = entry.key;
+      final dev = entry.value;
+
+      try {
+        await dev.write(addr - block.start, value, width);
+      } on TrapException catch (e) {
+        throw e.relocate(block.start);
+      }
+      return;
+    }
+
+    throw TrapException(Trap.storeAccess, addr, StackTrace.current);
+  }
+
+  Future<List<int>> readBlock(
+    int addr,
+    int length, {
+    PrivilegeMode privilege = PrivilegeMode.machine,
+    bool pageTranslate = true,
+    bool sum = false,
+    bool mxr = false,
+  }) async {
+    final result = List<int>.filled(length, 0);
+    for (int i = 0; i < length; i++) {
+      result[i] = await read(
+        addr + i,
+        1,
         privilege: privilege,
+        pageTranslate: pageTranslate,
         sum: sum,
         mxr: mxr,
       );
     }
-
-    for (final entry in devices.entries) {
-      final block = entry.key;
-      final dev = entry.value;
-
-      if (addr >= block.start && addr < block.end) {
-        try {
-          await dev.write(addr - block.start, value, width);
-        } on TrapException catch (e) {
-          throw e.relocate(block.start);
-        }
-        return;
-      }
-    }
-
-    throw TrapException(Trap.storeAccess, addr, StackTrace.current);
+    return result;
   }
 
   @override

@@ -13,11 +13,18 @@ class DeviceField {
   String toString() => 'DeviceField($name, $width)';
 }
 
+enum DeviceAccessorType { memory, io }
+
 class DeviceAccessor {
   final String path;
   final Map<int, DeviceField> fields;
+  final DeviceAccessorType type;
 
-  const DeviceAccessor(this.path, this.fields);
+  const DeviceAccessor(
+    this.path,
+    this.fields, {
+    this.type = DeviceAccessorType.io,
+  });
 
   int? fieldAddress(String name) {
     var offset = 0;
@@ -107,10 +114,13 @@ class Device {
     BusAddressRange? range,
     List<int> interrupts = const [],
     Map<int, DeviceField>? fields,
+    DeviceAccessorType type = DeviceAccessorType.memory,
     ClockConfig? clock,
   }) {
     path ??= '/$name';
-    final accessor = fields != null ? DeviceAccessor(path, fields) : null;
+    final accessor = fields != null
+        ? DeviceAccessor(path, fields, type: type)
+        : null;
     final clientPort = fields != null && range != null
         ? BusClientPort(
             name: path,

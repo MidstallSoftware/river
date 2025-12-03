@@ -34,6 +34,7 @@ class StreamV1SoC extends RiverSoC {
       compatible: 'river,bootrom',
       range: BusAddressRange(0x00010000, l1iSize),
       fields: const {0: DeviceField('data', 4)},
+      type: DeviceAccessorType.memory,
       clock: sysclk.clock,
     ),
     Device.simple(
@@ -45,6 +46,7 @@ class StreamV1SoC extends RiverSoC {
         0x4000: DeviceField('mtimecmp', 8),
         0xBFF8: DeviceField('mtime', 8),
       },
+      type: DeviceAccessorType.io,
       clock: sysclk.clock,
     ),
     Device.simple(
@@ -58,6 +60,7 @@ class StreamV1SoC extends RiverSoC {
         0x200000: DeviceField('threshold_cpu0', 4),
         0x200004: DeviceField('claim_cpu0', 4),
       },
+      type: DeviceAccessorType.io,
       clock: sysclk.clock,
     ),
     RiverUart(name: 'uart0', address: 0x10000000, clock: sysclk.clock),
@@ -71,6 +74,7 @@ class StreamV1SoC extends RiverSoC {
         1: DeviceField('output', 4),
         2: DeviceField('dir', 4),
       },
+      type: DeviceAccessorType.io,
       clock: sysclk.clock,
     ),
     Device.simple(
@@ -82,12 +86,14 @@ class StreamV1SoC extends RiverSoC {
         1: DeviceField('status', 4),
         2: DeviceField('flush', 4),
       },
+      type: DeviceAccessorType.io,
       clock: sysclk.clock,
     ),
     Device.simple(
       name: 'flash',
       compatible: 'river,flash',
       range: BusAddressRange(0x20000000, flashSize),
+      type: DeviceAccessorType.memory,
       fields: const {0: DeviceField('read', 4)},
     ),
     Device.simple(
@@ -95,6 +101,7 @@ class StreamV1SoC extends RiverSoC {
       compatible: 'river,sram',
       range: BusAddressRange(0x80000000, sramSize),
       fields: const {0: DeviceField('data', 4)},
+      type: DeviceAccessorType.memory,
       clock: sysclk.clock,
     ),
   ];

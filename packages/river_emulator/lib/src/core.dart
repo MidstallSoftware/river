@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
+import 'cache.dart';
 import 'csr.dart';
 import 'dev.dart';
 import 'mmu.dart';
@@ -170,6 +171,8 @@ class RiverCoreEmulator {
       UnmodifiableListView(_reservationSet);
 
   final MmuEmulator mmu;
+  late final CacheEmulator? l1i;
+  late final CacheEmulator? l1d;
 
   RiverCoreEmulator(
     this.config, {
@@ -186,7 +189,75 @@ class RiverCoreEmulator {
        _interrupts = config.interrupts
            .map((config) => InterruptControllerEmulator(config))
            .toList(),
-       idle = false;
+       idle = false {
+    l1i = config.l1cache?.i != null
+        ? CacheEmulator(
+            config.l1cache!.i!,
+            fill: (addr, size) async {
+              final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+              final mxr = ((mstatus >> 19) & 1) != 0;
+              final sum = ((mstatus >> 18) & 1) != 0;
+
+              final phys = await mmu.translate(
+                addr,
+                MemoryAccess.instr,
+                privilege: mode,
+                mxr: mxr,
+                sum: sum,
+              );
+
+              return await mmu.readBlock(
+                phys,
+                size,
+                pageTranslate: false,
+                privilege: mode,
+                mxr: mxr,
+                sum: sum,
+              );
+            },
+            writeback: (_, _, _) async {},
+          )
+        : null;
+
+    l1d = config.l1cache?.d != null
+        ? CacheEmulator(
+            config.l1cache!.d!,
+            fill: (addr, size) async {
+              final phys = await translate(addr, MemoryAccess.read);
+
+              final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+              final mxr = ((mstatus >> 19) & 1) != 0;
+              final sum = ((mstatus >> 18) & 1) != 0;
+
+              return await mmu.readBlock(
+                phys,
+                size,
+                pageTranslate: false,
+                privilege: mode,
+                mxr: mxr,
+                sum: sum,
+              );
+            },
+            writeback: (addr, value, size) async {
+              final phys = await translate(addr, MemoryAccess.write);
+
+              final mstatus = csrs.read(CsrAddress.mstatus.address, this);
+              final mxr = ((mstatus >> 19) & 1) != 0;
+              final sum = ((mstatus >> 18) & 1) != 0;
+
+              await mmu.write(
+                phys,
+                value,
+                size,
+                pageTranslate: true,
+                privilege: mode,
+                mxr: mxr,
+                sum: sum,
+              );
+            },
+          )
+        : null;
+  }
 
   void clearReservationSet() => _reservationSet.clear();
 
@@ -197,6 +268,8 @@ class RiverCoreEmulator {
     idle = false;
     csrs.reset();
     mmu.reset();
+    if (l1i != null) l1i!.reset();
+    if (l1d != null) l1d!.reset();
   }
 
   InstructionType? decode(int instr) => config.microcode.decode(instr);
@@ -394,9 +467,33 @@ class RiverCoreEmulator {
   Future<int> fetch(int pc) async {
     final phys = await translate(pc, MemoryAccess.instr);
 
+    if (l1i != null) {
+      final firstHalfword = await l1i!.read(phys, 2);
+      if (firstHalfword != null) {
+        if ((firstHalfword & 0x3) != 0x3) {
+          return firstHalfword;
+        }
+      }
+
+      final value = await l1i!.read(phys, 4);
+      if (value != null) return value;
+    }
+
     final mstatus = csrs.read(CsrAddress.mstatus.address, this);
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
+
+    final firstHalfword = await mmu.read(
+      phys,
+      2,
+      pageTranslate: false,
+      sum: sum,
+      mxr: mxr,
+    );
+
+    if ((firstHalfword & 0x3) != 0x3) {
+      return firstHalfword;
+    }
 
     return await mmu.read(phys, 4, pageTranslate: false, sum: sum, mxr: mxr);
   }
@@ -408,13 +505,34 @@ class RiverCoreEmulator {
     final mxr = ((mstatus >> 19) & 1) != 0;
     final sum = ((mstatus >> 18) & 1) != 0;
 
-    return await mmu.read(
+    bool cachable = false;
+    if (l1d != null) {
+      cachable = await mmu.canCache(
+        phys,
+        privilege: mode,
+        pageTranslate: false,
+        mxr: mxr,
+        sum: sum,
+      );
+      if (cachable) {
+        final value = await l1d!.read(phys, width);
+        if (value != null) return value;
+      }
+    }
+
+    final value = await mmu.read(
       phys,
       width,
       pageTranslate: false,
       sum: sum,
       mxr: mxr,
     );
+
+    if (l1d != null && cachable) {
+      await l1d!.write(phys, value, width);
+    }
+
+    return value;
   }
 
   Future<void> write(int addr, int value, int width) async {
@@ -437,9 +555,26 @@ class RiverCoreEmulator {
       value,
       width,
       pageTranslate: false,
+      privilege: mode,
       sum: sum,
       mxr: mxr,
     );
+
+    if (await mmu.canCache(
+      phys,
+      privilege: mode,
+      pageTranslate: false,
+      mxr: mxr,
+      sum: sum,
+    )) {
+      if (l1d != null) {
+        if (l1d!.invalidate(phys)) return;
+      }
+
+      if (l1i != null) {
+        l1i!.invalidate(phys);
+      }
+    }
   }
 
   Future<RiverCoreEmulatorState> _innerExecute(
@@ -940,7 +1075,7 @@ class RiverCoreEmulator {
             await mmu.write(
               phys,
               srcValue.toUnsigned(mop.size.bits),
-              config.mxlen.width,
+              mop.size.bytes,
               pageTranslate: false,
               sum: sum,
               mxr: mxr,
