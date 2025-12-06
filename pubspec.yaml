@@ -5,6 +5,7 @@ environment:
   sdk: ^3.9.3
 
 workspace:
+  - packages/bintools
   - packages/riscv
   - packages/river
   - packages/river_adl

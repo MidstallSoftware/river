@@ -86,6 +86,7 @@
             // lib.mapAttrs' (name: lib.nameValuePair "${name}-tests") (
               lib.genAttrs
                 [
+                  "bintools"
                   "riscv"
                   "river"
                   "river_adl"

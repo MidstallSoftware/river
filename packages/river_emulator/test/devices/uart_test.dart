@@ -69,7 +69,12 @@ void main() {
       );
 
       uart = UartEmulator(
-        RiverUart(name: 'uart0', address: 0x20000, clock: config.clock),
+        RiverUart(
+          name: 'uart0',
+          address: 0x20000,
+          clock: config.clock,
+          interrupt: 0,
+        ),
         input: inputController.stream,
         output: outputController.sink,
       );
