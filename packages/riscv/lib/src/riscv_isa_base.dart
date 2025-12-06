@@ -234,7 +234,13 @@ class IType extends InstructionType {
       super.map(map);
 
   @override
-  int get imm => _imm;
+  int get imm {
+    int value = _imm & 0xFFF; // 12-bit imm
+    if ((value & 0x800) != 0) {
+      value |= ~0xFFF; // sign extend
+    }
+    return value;
+  }
 
   @override
   Map<String, int> toMap() => {

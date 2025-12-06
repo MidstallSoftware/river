@@ -1,9 +1,41 @@
 import 'dart:io' show Platform, File;
+import 'dart:typed_data';
 
 import 'package:args/args.dart';
+import 'package:bintools/bintools.dart';
 import 'package:path/path.dart' as path;
 import 'package:river/river.dart';
 import 'package:river_emulator/river_emulator.dart';
+
+Future<void> _loadTextSegment(
+  CacheEmulator cache,
+  int addr,
+  Uint8List data,
+) async {
+  var i = 0;
+  while (i < data.length) {
+    final firstHalfword = data[i] | (data[i + 1] << 8);
+    if ((firstHalfword & 0x3) != 0x3) {
+      await cache.write(addr + i, firstHalfword, 2);
+      i += 2;
+    } else {
+      final halfword =
+          firstHalfword | (data[i + 2] << 16) | (data[i + 3] << 24);
+      await cache.write(addr + i, halfword, 4);
+      i += 4;
+    }
+  }
+}
+
+Future<void> _loadDataSegment(
+  CacheEmulator cache,
+  int addr,
+  Uint8List data,
+) async {
+  for (var i = 0; i < data.length; i++) {
+    await cache.write(addr + i, data[i], 1);
+  }
+}
 
 Future<void> main(List<String> arguments) async {
   var parser = ArgParser();
@@ -153,23 +185,27 @@ Future<void> main(List<String> arguments) async {
   if (maskromPath != null && emulator.soc.cores[0].l1i != null) {
     final resetVector = emulator.soc.cores[0].config.resetVector;
     final l1i = emulator.soc.cores[0].l1i!;
-    // NOTE: maybe we should accept the maskrom as an ELF binary to load data
-    final maskrom = File(maskromPath).readAsBytesSync();
+    final l1d = emulator.soc.cores[0].l1d;
+    final maskrom = Elf.load(File(maskromPath).readAsBytesSync());
 
-    var i = 0;
-    while (i < maskrom.length) {
-      // FIXME: shift correctly
-      final firstHalfword = maskrom[i] | (maskrom[i + 1] << 8);
-      if ((firstHalfword & 0x3) != 0x3) {
-        await l1i.write(resetVector + i, firstHalfword, 2);
-        i += 2;
-      } else {
-        // FIXME: shift correctly
-        final halfword =
-            firstHalfword | (maskrom[i + 2] << 16) | (maskrom[i + 3] << 24);
-        await l1i.write(resetVector + i, halfword, 4);
-        i += 4;
+    final loadSegments = maskrom.programHeaders.where((ph) => ph.type == 1);
+
+    for (final ph in loadSegments) {
+      final segBytes = maskrom.segmentData(ph);
+      final vaddr = ph.vAddr;
+
+      if ((ph.flags & 0x1) != 0) {
+        await _loadTextSegment(l1i, vaddr, segBytes);
+      } else if (l1d != null && segBytes.isNotEmpty) {
+        await _loadDataSegment(l1d!, vaddr, segBytes);
       }
+    }
+
+    if (maskrom.header.entry != resetVector) {
+      print(
+        "WARNING: ELF entry is 0x${maskrom.header.entry.toRadixString(16)}, "
+        "but core reset vector is 0x${resetVector.toRadixString(16)}",
+      );
     }
   } else if (maskromPath == null && emulator.soc.cores[0].l1i != null) {
     print('Maskrom binary is required');

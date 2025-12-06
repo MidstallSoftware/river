@@ -128,6 +128,16 @@ class CacheEmulator {
   }
 
   Future<void> write(int addr, int value, int size) async {
+    final off = _offset(addr);
+
+    if (off + size > config.lineSize) {
+      for (int i = 0; i < size; i++) {
+        final byte = (value >> (8 * i)) & 0xFF;
+        await write(addr + i, byte, 1);
+      }
+      return;
+    }
+
     CacheLineEmulator? line = _findLine(addr);
 
     if (line == null) {
@@ -138,10 +148,10 @@ class CacheEmulator {
       line.data.setAll(0, block);
     }
 
-    final off = _offset(addr);
+    final safeOff = _offset(addr);
     for (int i = 0; i < size; i++) {
       final byte = (value >> (8 * i)) & 0xFF;
-      line.data[off + i] = byte;
+      line.data[safeOff + i] = byte;
     }
 
     _markUsed(line);
