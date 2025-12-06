@@ -10,10 +10,11 @@ class RiverUart extends Device {
     required String name,
     required int address,
     required ClockConfig clock,
+    required int interrupt,
   }) : super(
          name: name,
          compatible: 'river,uart',
-         interrupts: const [1],
+         interrupts: [interrupt],
          range: BusAddressRange(address, 0x20),
          clock: clock,
          accessor: DeviceAccessor('/$name', const {

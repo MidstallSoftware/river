@@ -8,16 +8,16 @@ class BusAddressRange {
 
   const BusAddressRange(this.start, this.size);
 
-  BusAddressRange.from(BusAddressRange base, {int offset = 0, int? size})
+  /*BusAddressRange.from(BusAddressRange base, {int offset = 0, int? size})
     : start = base.start + offset,
-      size = size ?? base.size;
+      size = size ?? base.size;*/
 
-  bool contains(int addr) => addr >= start && addr < start + size;
+  bool contains(int addr) => addr >= start && addr < end;
 
   int get end => start + size;
 
-  BusAddressRange shift({int offset = 0, int? size}) =>
-      BusAddressRange(start + offset, size ?? this.size);
+  //BusAddressRange shift({int offset = 0, int? size}) =>
+  //    BusAddressRange(start + offset, size ?? this.size);
 
   @override
   String toString() => 'BusAddressRange(start: $start, end: $end, size: $size)';

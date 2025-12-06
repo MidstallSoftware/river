@@ -6,11 +6,12 @@ import 'river_base.dart';
 class DeviceField {
   final String name;
   final int width;
+  final int? offset;
 
-  const DeviceField(this.name, this.width);
+  const DeviceField(this.name, this.width, {this.offset});
 
   @override
-  String toString() => 'DeviceField($name, $width)';
+  String toString() => 'DeviceField($name, $width, offset: $offset)';
 }
 
 enum DeviceAccessorType { memory, io }
@@ -28,24 +29,30 @@ class DeviceAccessor {
 
   int? fieldAddress(String name) {
     var offset = 0;
-    for (final entry in fields.entries) {
-      final field = entry.value;
+    for (final field in fields.values) {
+      final start = field.offset ?? offset;
+      final end = start + field.width;
+
       if (name == field.name) {
-        return offset;
+        return start;
       }
-      offset += field.width;
+
+      offset = end;
     }
     return null;
   }
 
   DeviceField? getField(int addr) {
     var offset = 0;
-    for (final entry in fields.entries) {
-      final field = entry.value;
-      if (addr >= offset && addr < (offset + field.width)) {
+    for (final field in fields.values) {
+      final start = field.offset ?? offset;
+      final end = start + field.width;
+
+      if (addr >= start && addr < end) {
         return field;
       }
-      offset += field.width;
+
+      offset = end;
     }
     return null;
   }
@@ -55,14 +62,11 @@ class DeviceAccessor {
 
     var offset = 0;
     List<DeviceField> list = [];
-    for (final entry in fields.entries) {
-      final field = entry.value;
+    for (final field in fields.values) {
+      final start = field.offset ?? offset;
+      final fieldEnd = start + field.width;
 
-      final fieldStart = offset;
-      final fieldEnd = offset + field.width;
-
-      final overlaps = (addr < fieldEnd) && (end > fieldStart);
-
+      final overlaps = (addr < fieldEnd) && (end > start);
       if (overlaps) {
         list.add(field);
       }
@@ -142,7 +146,7 @@ class Device {
 
   MemoryBlock? get mmap {
     if (range != null && accessor != null) {
-      return MemoryBlock(range!.start, range!.end, accessor!);
+      return MemoryBlock(range!.start, range!.size, accessor!);
     }
     return null;
   }

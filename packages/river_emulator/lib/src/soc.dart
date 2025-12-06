@@ -67,6 +67,11 @@ class RiverSoCEmulator {
         for (final entry in interrupts.entries) {
           final id = entry.key;
           final value = entry.value;
+
+          if (dev.config.interrupts.length < id) {
+            throw 'Unmapped interrupt #$id for $dev';
+          }
+
           final irq = dev.config.interrupts[id];
 
           for (final ctrl in core.interrupts) {

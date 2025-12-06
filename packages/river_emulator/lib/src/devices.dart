@@ -1,14 +1,20 @@
-import 'devices/bootrom.dart';
+import 'devices/clint.dart';
+import 'devices/flash.dart';
+import 'devices/plic.dart';
 import 'devices/sram.dart';
 import 'devices/uart.dart';
 import 'dev.dart';
 
-export 'devices/bootrom.dart';
+export 'devices/clint.dart';
+export 'devices/flash.dart';
+export 'devices/plic.dart';
 export 'devices/sram.dart';
 export 'devices/uart.dart';
 
 const Map<String, DeviceEmulatorFactory> kDeviceEmulatorFactory = {
-  'river,bootrom': BootromEmulator.create,
+  'riscv,clint': RiscVClintEmulator.create,
+  'riscv,plic': RiscVPlicEmulator.create,
+  'river,flash': FlashEmulator.create,
   'river,sram': SramEmulator.create,
   'river,uart': UartEmulator.create,
 };

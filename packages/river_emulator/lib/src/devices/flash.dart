@@ -7,17 +7,17 @@ import '../core.dart';
 import '../dev.dart';
 import '../soc.dart';
 
-class BootromEmulator extends DeviceEmulator {
+class FlashEmulator extends DeviceEmulator {
   final List<int> data;
   bool enabled;
 
-  BootromEmulator(super.config, this.data) : enabled = true;
+  FlashEmulator(super.config, this.data) : enabled = true;
 
   @override
-  DeviceAccessorEmulator? get memAccessor => BootromAccessorEmulator(this);
+  DeviceAccessorEmulator? get memAccessor => FlashAccessorEmulator(this);
 
   @override
-  String toString() => 'BootromEmulator(config: $config)';
+  String toString() => 'FlashEmulator(config: $config)';
 
   static DeviceEmulator create(
     Device config,
@@ -41,14 +41,14 @@ class BootromEmulator extends DeviceEmulator {
       data = [...data, ...List.filled(config.mmap!.size - data.length, 0)];
     }
 
-    return BootromEmulator(config, data);
+    return FlashEmulator(config, data);
   }
 }
 
-class BootromAccessorEmulator extends DeviceAccessorEmulator {
-  final BootromEmulator rom;
+class FlashAccessorEmulator extends DeviceAccessorEmulator {
+  final FlashEmulator rom;
 
-  BootromAccessorEmulator(this.rom) : super(rom.config.accessor!);
+  FlashAccessorEmulator(this.rom) : super(rom.config.accessor!);
 
   @override
   Future<int> read(int addr, int width) {

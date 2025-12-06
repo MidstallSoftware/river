@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 
 import 'package:args/args.dart';
 import 'package:path/path.dart' as path;
@@ -29,6 +29,11 @@ Future<void> main(List<String> arguments) async {
     'device-option',
     help: 'Adds an option when configuring a device',
     splitCommas: false,
+  );
+
+  parser.addOption(
+    'maskrom-path',
+    help: 'Path to the binary to load into the maskrom',
   );
 
   parser.addFlag('help', help: 'Prints the usage');
@@ -140,7 +145,39 @@ Future<void> main(List<String> arguments) async {
       ),
     ),
   );
+
   emulator.reset();
+
+  final maskromPath = args.option('maskrom-path');
+
+  if (maskromPath != null && emulator.soc.cores[0].l1i != null) {
+    final resetVector = emulator.soc.cores[0].config.resetVector;
+    final l1i = emulator.soc.cores[0].l1i!;
+    // NOTE: maybe we should accept the maskrom as an ELF binary to load data
+    final maskrom = File(maskromPath).readAsBytesSync();
+
+    var i = 0;
+    while (i < maskrom.length) {
+      // FIXME: shift correctly
+      final firstHalfword = maskrom[i] | (maskrom[i + 1] << 8);
+      if ((firstHalfword & 0x3) != 0x3) {
+        await l1i.write(resetVector + i, firstHalfword, 2);
+        i += 2;
+      } else {
+        // FIXME: shift correctly
+        final halfword =
+            firstHalfword | (maskrom[i + 2] << 16) | (maskrom[i + 3] << 24);
+        await l1i.write(resetVector + i, halfword, 4);
+        i += 4;
+      }
+    }
+  } else if (maskromPath == null && emulator.soc.cores[0].l1i != null) {
+    print('Maskrom binary is required');
+    return;
+  } else if (maskromPath != null && emulator.soc.cores[0].l1i == null) {
+    print('Cannot load maskrom due to L1i not existing');
+    return;
+  }
 
   Map<int, int> pcs = {};
   while (true) {

@@ -6,8 +6,8 @@ void main() {
     const soc = StreamV1SoC.icesugar();
 
     test('Reset vector', () {
-      final bootrom = soc.getDevice('bootrom')!;
-      expect(soc.cores[0].resetVector, bootrom.range!.start);
+      final flash = soc.getDevice('flash')!;
+      expect(soc.cores[0].resetVector, flash.range!.start);
     });
   });
 }

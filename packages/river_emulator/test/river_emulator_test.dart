@@ -22,7 +22,7 @@ void main() {
     test('Configure', () {
       soc.reset();
 
-      expect(soc.devices.length, 8);
+      expect(soc.devices.length, 6);
       expect(soc.cores.length, 1);
     });
 
@@ -30,14 +30,15 @@ void main() {
       final soc = RiverSoCEmulator(
         config,
         deviceOptions: {
-          'bootrom': {'bytes': '002081B3'},
+          'flash': {'bytes': '002081B3'},
           'uart0': {'input.empty': 'true', 'output.empty': 'true'},
         },
       );
 
-      final mmap = soc.getDevice('bootrom')!.config.mmap!;
+      final mmap = soc.getDevice('flash')!.config.mmap!;
 
       soc.reset();
+
       expect(
         await soc.cores[0].read(mmap.start, soc.cores[0].config.mxlen.width),
         0x002081B3,
@@ -48,12 +49,12 @@ void main() {
       final soc = RiverSoCEmulator(
         config,
         deviceOptions: {
-          'bootrom': {'bytes': '00A08293'},
+          'flash': {'bytes': '00A08293'},
           'uart0': {'input.empty': 'true', 'output.empty': 'true'},
         },
       );
 
-      final mmap = soc.getDevice('bootrom')!.config.mmap!;
+      final mmap = soc.getDevice('flash')!.config.mmap!;
 
       soc.reset();
 
