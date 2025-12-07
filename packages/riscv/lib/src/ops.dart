@@ -1,84 +1,276 @@
 import 'helpers.dart';
 import 'riscv_isa_base.dart';
 
+/// Full table mapping micro-op funct -> encoder/decoder.
+const kMicroOpTable = <MicroOpEncoding>[
+  MicroOpEncoding<WriteCsrMicroOp>(
+    funct: WriteCsrMicroOp.funct,
+    struct: WriteCsrMicroOp.struct,
+    constructor: WriteCsrMicroOp.map,
+  ),
+  MicroOpEncoding<ReadRegisterMicroOp>(
+    funct: ReadRegisterMicroOp.funct,
+    struct: ReadRegisterMicroOp.struct,
+    constructor: ReadRegisterMicroOp.map,
+  ),
+  MicroOpEncoding<WriteRegisterMicroOp>(
+    funct: WriteRegisterMicroOp.funct,
+    struct: WriteRegisterMicroOp.struct,
+    constructor: WriteRegisterMicroOp.map,
+  ),
+  MicroOpEncoding<ModifyLatchMicroOp>(
+    funct: ModifyLatchMicroOp.funct,
+    struct: ModifyLatchMicroOp.struct,
+    constructor: ModifyLatchMicroOp.map,
+  ),
+  MicroOpEncoding<AluMicroOp>(
+    funct: AluMicroOp.funct,
+    struct: AluMicroOp.struct,
+    constructor: AluMicroOp.map,
+  ),
+  MicroOpEncoding<BranchIfMicroOp>(
+    funct: BranchIfMicroOp.funct,
+    struct: BranchIfMicroOp.struct,
+    constructor: BranchIfMicroOp.map,
+  ),
+  MicroOpEncoding<UpdatePCMicroOp>(
+    funct: UpdatePCMicroOp.funct,
+    struct: UpdatePCMicroOp.struct,
+    constructor: UpdatePCMicroOp.map,
+  ),
+  MicroOpEncoding<MemLoadMicroOp>(
+    funct: MemLoadMicroOp.funct,
+    struct: MemLoadMicroOp.struct,
+    constructor: MemLoadMicroOp.map,
+  ),
+  MicroOpEncoding<MemStoreMicroOp>(
+    funct: MemStoreMicroOp.funct,
+    struct: MemStoreMicroOp.struct,
+    constructor: MemStoreMicroOp.map,
+  ),
+  MicroOpEncoding<TrapMicroOp>(
+    funct: TrapMicroOp.funct,
+    struct: TrapMicroOp.struct,
+    constructor: TrapMicroOp.map,
+  ),
+  MicroOpEncoding<TlbFenceMicroOp>(
+    funct: TlbFenceMicroOp.funct,
+    struct: TlbFenceMicroOp.struct,
+    constructor: TlbFenceMicroOp.map,
+  ),
+  MicroOpEncoding<TlbInvalidateMicroOp>(
+    funct: TlbInvalidateMicroOp.funct,
+    struct: TlbInvalidateMicroOp.struct,
+    constructor: TlbInvalidateMicroOp.map,
+  ),
+  MicroOpEncoding<FenceMicroOp>(
+    funct: FenceMicroOp.funct,
+    struct: FenceMicroOp.struct,
+    constructor: FenceMicroOp.map,
+  ),
+  MicroOpEncoding<ReturnMicroOp>(
+    funct: ReturnMicroOp.funct,
+    struct: ReturnMicroOp.struct,
+    constructor: ReturnMicroOp.map,
+  ),
+  MicroOpEncoding<WriteLinkRegisterMicroOp>(
+    funct: WriteLinkRegisterMicroOp.funct,
+    struct: WriteLinkRegisterMicroOp.struct,
+    constructor: WriteLinkRegisterMicroOp.map,
+  ),
+  MicroOpEncoding<InterruptHoldMicroOp>(
+    funct: InterruptHoldMicroOp.funct,
+    struct: InterruptHoldMicroOp.struct,
+    constructor: InterruptHoldMicroOp.map,
+  ),
+  MicroOpEncoding<LoadReservedMicroOp>(
+    funct: LoadReservedMicroOp.funct,
+    struct: LoadReservedMicroOp.struct,
+    constructor: LoadReservedMicroOp.map,
+  ),
+  MicroOpEncoding<StoreConditionalMicroOp>(
+    funct: StoreConditionalMicroOp.funct,
+    struct: StoreConditionalMicroOp.struct,
+    constructor: StoreConditionalMicroOp.map,
+  ),
+  MicroOpEncoding<AtomicMemoryMicroOp>(
+    funct: AtomicMemoryMicroOp.funct,
+    struct: AtomicMemoryMicroOp.struct,
+    constructor: AtomicMemoryMicroOp.map,
+  ),
+  MicroOpEncoding<ValidateFieldMicroOp>(
+    funct: ValidateFieldMicroOp.funct,
+    struct: ValidateFieldMicroOp.struct,
+    constructor: ValidateFieldMicroOp.map,
+  ),
+  MicroOpEncoding<SetFieldMicroOp>(
+    funct: SetFieldMicroOp.funct,
+    struct: SetFieldMicroOp.struct,
+    constructor: SetFieldMicroOp.map,
+  ),
+  MicroOpEncoding<ReadCsrMicroOp>(
+    funct: ReadCsrMicroOp.funct,
+    struct: ReadCsrMicroOp.struct,
+    constructor: ReadCsrMicroOp.map,
+  ),
+];
+
+/// {@category microcode}
+class MicroOpEncoding<T extends MicroOp> {
+  final int funct;
+  final BitStruct Function(Mxlen) struct;
+  final T Function(Map<String, int>) constructor;
+
+  const MicroOpEncoding({
+    required this.funct,
+    required this.struct,
+    required this.constructor,
+  });
+
+  int encode(T op, Mxlen mxlen) => struct(mxlen).encode(op.toMap());
+
+  T decode(int value, Mxlen mxlen) => constructor(struct(mxlen).decode(value));
+}
+
 /// {@category microcode}
 sealed class MicroOp {
   const MicroOp();
+
+  Map<String, int> toMap() => {};
+
+  static const functRange = BitRange(0, 4);
 }
 
 /// {@category microcode}
-enum MicroOpCondition { eq, ne, lt, gt, ge, le }
+enum MicroOpCondition {
+  eq(0),
+  ne(1),
+  lt(2),
+  gt(3),
+  ge(4),
+  le(5);
+
+  const MicroOpCondition(this.value);
+
+  final int value;
+
+  static const int width = 3;
+}
 
 /// {@category microcode}
 enum MicroOpAluFunct {
-  add,
-  sub,
-  mul,
-  and,
-  or,
-  xor,
-  sll,
-  srl,
-  sra,
-  slt,
-  sltu,
-  masked,
-  mulh,
-  mulhsu,
-  mulhu,
-  div,
-  divu,
-  rem,
-  remu,
-  mulw,
-  divw,
-  divuw,
-  remw,
-  remuw,
+  add(0),
+  sub(1),
+  mul(2),
+  and(3),
+  or(4),
+  xor(5),
+  sll(6),
+  srl(7),
+  sra(8),
+  slt(9),
+  sltu(10),
+  masked(11),
+  mulh(12),
+  mulhsu(13),
+  mulhu(14),
+  div(15),
+  divu(16),
+  rem(17),
+  remu(18),
+  mulw(19),
+  divw(20),
+  divuw(21),
+  remw(22),
+  remuw(23);
+
+  const MicroOpAluFunct(this.value);
+
+  final int value;
+
+  static const int width = 5;
 }
 
 /// {@category microcode}
-enum MicroOpAtomicFunct { add, swap, xor, and, or, min, max, minu, maxu }
+enum MicroOpAtomicFunct {
+  add(0),
+  swap(1),
+  xor(2),
+  and(3),
+  or(4),
+  min(5),
+  max(6),
+  minu(7),
+  maxu(8);
+
+  const MicroOpAtomicFunct(this.value);
+
+  final int value;
+
+  static const int width = 4;
+}
 
 /// {@category microcode}
-enum MicroOpSource { alu, mem, imm, rs1, rs2, sp, rd, pc }
+enum MicroOpSource {
+  alu(0),
+  mem(1),
+  imm(2),
+  rs1(3),
+  rs2(4),
+  sp(5),
+  rd(6),
+  pc(7);
+
+  const MicroOpSource(this.value);
+
+  final int value;
+
+  static const int width = 3;
+}
 
 /// {@category microcode}
-enum MicroOpField { rd, rs1, rs2, imm, pc, sp }
+enum MicroOpField {
+  rd(0),
+  rs1(1),
+  rs2(2),
+  imm(3),
+  pc(4),
+  sp(5);
+
+  const MicroOpField(this.value);
+
+  final int value;
+
+  static const int width = 3;
+}
 
 /// {@category microcode}
 enum MicroOpLink {
-  ra(Register.x1, null),
-  rd(null, MicroOpSource.rd);
+  ra(0, Register.x1, null),
+  rd(1, null, MicroOpSource.rd);
 
-  const MicroOpLink(this.reg, this.source);
+  const MicroOpLink(this.value, this.reg, this.source);
 
+  final int value;
   final Register? reg;
   final MicroOpSource? source;
+
+  static const int width = 1;
 }
 
 /// {@category microcode}
 enum MicroOpMemSize {
-  byte(1),
-  half(2),
-  word(4),
-  dword(8);
+  byte(0, 1),
+  half(1, 2),
+  word(2, 4),
+  dword(3, 8);
 
-  const MicroOpMemSize(this.bytes);
+  const MicroOpMemSize(this.value, this.bytes);
 
+  final int value;
   final int bytes;
 
   int get bits => bytes * 8;
-}
-
-/// {@category microcode}
-class ReadCsrMicroOp extends MicroOp {
-  final MicroOpField source;
-
-  const ReadCsrMicroOp(this.source);
-
-  @override
-  String toString() => 'ReadCsrMicroOp($source)';
 }
 
 /// {@category microcode}
@@ -89,8 +281,30 @@ class WriteCsrMicroOp extends MicroOp {
 
   const WriteCsrMicroOp(this.field, this.source, {this.offset = 0});
 
+  const WriteCsrMicroOp.map(Map<String, int> m)
+    : field = MicroOpField.values[m['field']!],
+      source = MicroOpSource.values[m['source']!],
+      offset = m['offset'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'field': field.value,
+    'source': source.value,
+    'offset': offset,
+  };
+
   @override
   String toString() => 'WriteCsrMicroOp($field, $source, offset: $offset)';
+
+  static const int funct = 1;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'field': const BitRange(5, 8),
+    'source': const BitRange(9, 12),
+    'offset': BitRange(13, 13 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
@@ -105,9 +319,31 @@ class ReadRegisterMicroOp extends MicroOp {
     this.valueOffset = 0,
   });
 
+  const ReadRegisterMicroOp.map(Map<String, int> m)
+    : source = MicroOpField.values[m['source']!],
+      offset = m['offset'] ?? 0,
+      valueOffset = m['valueOffset'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'source': source.value,
+    'offset': offset,
+    'valueOffset': valueOffset,
+  };
+
   @override
   String toString() =>
       'ReadRegisterMicroOp($source, offset: $offset, valueOffset: $valueOffset)';
+
+  static const int funct = 2;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'source': const BitRange(5, 8),
+    'offset': BitRange(9, 9 + mxlen.size),
+    'valueOffset': BitRange(9 + mxlen.size, 9 + (mxlen.size * 2)),
+  });
 }
 
 /// {@category microcode}
@@ -124,9 +360,34 @@ class WriteRegisterMicroOp extends MicroOp {
     this.valueOffset = 0,
   });
 
+  const WriteRegisterMicroOp.map(Map<String, int> m)
+    : field = MicroOpField.values[m['field']!],
+      source = MicroOpSource.values[m['source']!],
+      offset = m['offset'] ?? 0,
+      valueOffset = m['valueOffset'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'field': field.value,
+    'source': source.value,
+    'offset': offset,
+    'valueOffset': valueOffset,
+  };
+
   @override
   String toString() =>
       'WriteRegisterMicroOp($field, $source, offset: $offset, valueOffset: $valueOffset)';
+
+  static const int funct = 3;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'field': const BitRange(5, 8),
+    'source': const BitRange(9, 12),
+    'offset': BitRange(13, 13 + mxlen.size),
+    'valueOffset': BitRange(13 + mxlen.size, 13 + (mxlen.size * 2)),
+  });
 }
 
 /// {@category microcode}
@@ -137,19 +398,64 @@ class ModifyLatchMicroOp extends MicroOp {
 
   const ModifyLatchMicroOp(this.field, this.source, this.replace);
 
+  const ModifyLatchMicroOp.map(Map<String, int> m)
+    : field = MicroOpField.values[m['field']!],
+      source = MicroOpSource.values[m['source']!],
+      replace = (m['replace'] ?? 0) != 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'field': field.value,
+    'source': source.value,
+    'replace': replace ? 1 : 0,
+  };
+
   @override
   String toString() => 'ModifyLatchMicroOp($field, $source, $replace)';
+
+  static const int funct = 4;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'field': const BitRange(5, 8),
+    'source': const BitRange(9, 12),
+    'replace': BitRange.single(13),
+  });
 }
 
 /// {@category microcode}
 class AluMicroOp extends MicroOp {
-  final MicroOpAluFunct funct;
+  final MicroOpAluFunct alu;
   final MicroOpField a;
   final MicroOpField b;
-  const AluMicroOp(this.funct, this.a, this.b);
+
+  const AluMicroOp(this.alu, this.a, this.b);
+
+  const AluMicroOp.map(Map<String, int> m)
+    : alu = MicroOpAluFunct.values[m['alu']!],
+      a = MicroOpField.values[m['a']!],
+      b = MicroOpField.values[m['b']!];
 
   @override
-  String toString() => 'AluMicroOp($funct, $a, $b)';
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'alu': alu.value,
+    'a': a.value,
+    'b': b.value,
+  };
+
+  @override
+  String toString() => 'AluMicroOp($alu, $a, $b)';
+
+  static const int funct = 5;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'alu': const BitRange(5, 10),
+    'a': const BitRange(11, 14),
+    'b': const BitRange(15, 18),
+  });
 }
 
 /// {@category microcode}
@@ -163,12 +469,41 @@ class BranchIfMicroOp extends MicroOp {
     this.condition,
     this.target, {
     this.offset = 0,
-    this.offsetField = null,
+    this.offsetField,
   });
+
+  const BranchIfMicroOp.map(Map<String, int> m)
+    : condition = MicroOpCondition.values[m['condition']!],
+      target = MicroOpSource.values[m['target']!],
+      offset = m['offset'] ?? 0,
+      offsetField = (m['hasField'] ?? 0) != 0
+          ? MicroOpField.values[m['offsetField']!]
+          : null;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'condition': condition.value,
+    'target': target.value,
+    'hasField': offsetField != null ? 1 : 0,
+    'offsetField': offsetField?.value ?? 0,
+    'offset': offset,
+  };
 
   @override
   String toString() =>
       'BranchIfMicroOp($condition, $target, $offset, $offsetField)';
+
+  static const int funct = 6;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'condition': const BitRange(5, 10),
+    'target': const BitRange(11, 14),
+    'hasField': const BitRange.single(15),
+    'offsetField': const BitRange(16, 19),
+    'offset': BitRange(20, 20 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
@@ -183,15 +518,54 @@ class UpdatePCMicroOp extends MicroOp {
   const UpdatePCMicroOp(
     this.source, {
     this.offset = 0,
-    this.offsetField = null,
-    this.offsetSource = null,
+    this.offsetField,
+    this.offsetSource,
     this.absolute = false,
     this.align = false,
   });
 
+  const UpdatePCMicroOp.map(Map<String, int> m)
+    : source = MicroOpField.values[m['source']!],
+      offset = m['offset'] ?? 0,
+      offsetSource = (m['hasSource'] ?? 0) != 0
+          ? MicroOpSource.values[m['offsetSource']!]
+          : null,
+      offsetField = (m['hasField'] ?? 0) != 0
+          ? MicroOpField.values[m['offsetField']!]
+          : null,
+      absolute = (m['absolute'] ?? 0) != 0,
+      align = (m['align'] ?? 0) != 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'source': source.value,
+    'hasSource': offsetSource != null ? 1 : 0,
+    'hasField': offsetField != null ? 1 : 0,
+    'offsetSource': offsetSource?.value ?? 0,
+    'offsetField': offsetField?.value ?? 0,
+    'absolute': absolute ? 1 : 0,
+    'align': align ? 1 : 0,
+    'offset': offset,
+  };
+
   @override
   String toString() =>
       'UpdatePCMicroOp($source, $offset, $offsetField, $offsetSource, absolute: $absolute, align: $align)';
+
+  static const int funct = 7;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'source': const BitRange(5, 8),
+    'hasSource': const BitRange.single(9),
+    'hasField': const BitRange.single(10),
+    'offsetField': const BitRange(11, 14),
+    'offsetSource': const BitRange(15, 17),
+    'absolute': const BitRange.single(18),
+    'align': const BitRange.single(19),
+    'offset': BitRange(20, 20 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
@@ -208,9 +582,34 @@ class MemLoadMicroOp extends MicroOp {
     required this.dest,
   });
 
+  const MemLoadMicroOp.map(Map<String, int> m)
+    : base = MicroOpField.values[m['base']!],
+      size = MicroOpMemSize.values[m['size']!],
+      unsigned = (m['unsigned'] ?? 0) != 0,
+      dest = MicroOpField.values[m['dest']!];
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'base': base.value,
+    'dest': dest.value,
+    'size': size.value,
+    'unsigned': unsigned ? 1 : 0,
+  };
+
   @override
   String toString() =>
       'MemLoadMicroOp($base, $size, ${unsigned ? 'unsigned' : 'signed'}, $dest)';
+
+  static const int funct = 8;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'base': const BitRange(5, 8),
+    'dest': const BitRange(9, 12),
+    'size': const BitRange(13, 14),
+    'unsigned': BitRange.single(15),
+  });
 }
 
 /// {@category microcode}
@@ -225,8 +624,30 @@ class MemStoreMicroOp extends MicroOp {
     required this.size,
   });
 
+  const MemStoreMicroOp.map(Map<String, int> m)
+    : base = MicroOpField.values[m['base']!],
+      src = MicroOpField.values[m['src']!],
+      size = MicroOpMemSize.values[m['size']!];
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'base': base.value,
+    'src': src.value,
+    'size': size.value,
+  };
+
   @override
   String toString() => 'MemStoreMicroOp($base, $src, $size)';
+
+  static const int funct = 9;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'base': const BitRange(5, 8),
+    'src': const BitRange(9, 12),
+    'size': const BitRange(13, 14),
+  });
 }
 
 /// {@category microcode}
@@ -236,20 +657,59 @@ class TrapMicroOp extends MicroOp {
   final Trap? kindUser;
 
   const TrapMicroOp(this.kindMachine, this.kindSupervisor, this.kindUser);
+
   const TrapMicroOp.one(this.kindMachine)
     : kindSupervisor = null,
       kindUser = null;
 
+  const TrapMicroOp.map(Map<String, int> m)
+    : kindMachine = Trap.values[m['machine']!],
+      kindSupervisor = (m['hasSupervisor'] ?? 0) != 0
+          ? Trap.values[m['supervisor']!]
+          : null,
+      kindUser = (m['hasUser'] ?? 0) != 0 ? Trap.values[m['user']!] : null;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'machine': kindMachine.index,
+    'hasSupervisor': kindSupervisor != null ? 1 : 0,
+    'supervisor': kindSupervisor?.index ?? 0,
+    'hasUser': kindUser != null ? 1 : 0,
+    'user': kindUser?.index ?? 0,
+  };
+
   @override
   String toString() => 'TrapMicroOp($kindMachine, $kindSupervisor, $kindUser)';
+
+  static const int funct = 10;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    // 8 bits per trap kind
+    'machine': const BitRange(5, 12),
+    'supervisor': const BitRange(13, 20),
+    'user': const BitRange(21, 28),
+    'hasSupervisor': BitRange.single(29),
+    'hasUser': BitRange.single(30),
+  });
 }
 
 /// {@category microcode}
 class TlbFenceMicroOp extends MicroOp {
   const TlbFenceMicroOp();
 
+  const TlbFenceMicroOp.map(Map<String, int> _);
+
+  @override
+  Map<String, int> toMap() => {'funct': funct};
+
   @override
   String toString() => 'TlbFenceMicroOp()';
+
+  static const int funct = 11;
+
+  static BitStruct struct(Mxlen _) => BitStruct({'funct': MicroOp.functRange});
 }
 
 /// {@category microcode}
@@ -262,17 +722,45 @@ class TlbInvalidateMicroOp extends MicroOp {
     required this.asidField,
   });
 
+  const TlbInvalidateMicroOp.map(Map<String, int> m)
+    : addrField = MicroOpField.values[m['addrField']!],
+      asidField = MicroOpField.values[m['asidField']!];
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'addrField': addrField.value,
+    'asidField': asidField.value,
+  };
+
   @override
   String toString() =>
       'TlbInvalidateMicroOp(addrField: $addrField, asidField: $asidField)';
+
+  static const int funct = 12;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'addrField': const BitRange(5, 8),
+    'asidField': const BitRange(9, 12),
+  });
 }
 
 /// {@category microcode}
 class FenceMicroOp extends MicroOp {
   const FenceMicroOp();
 
+  const FenceMicroOp.map(Map<String, int> _);
+
+  @override
+  Map<String, int> toMap() => {'funct': funct};
+
   @override
   String toString() => 'FenceMicroOp()';
+
+  static const int funct = 13;
+
+  static BitStruct struct(Mxlen _) => BitStruct({'funct': MicroOp.functRange});
 }
 
 /// {@category microcode}
@@ -281,8 +769,19 @@ class ReturnMicroOp extends MicroOp {
 
   const ReturnMicroOp(this.mode);
 
+  ReturnMicroOp.map(Map<String, int> m)
+    : mode = PrivilegeMode.find(m['mode']!)!;
+
+  @override
+  Map<String, int> toMap() => {'funct': funct, 'mode': mode.id};
+
   @override
   String toString() => 'ReturnMicroOp($mode)';
+
+  static const int funct = 14;
+
+  static BitStruct struct(Mxlen _) =>
+      BitStruct({'funct': MicroOp.functRange, 'mode': const BitRange(5, 7)});
 }
 
 /// {@category microcode}
@@ -292,16 +791,44 @@ class WriteLinkRegisterMicroOp extends MicroOp {
 
   const WriteLinkRegisterMicroOp({required this.link, required this.pcOffset});
 
+  const WriteLinkRegisterMicroOp.map(Map<String, int> m)
+    : link = MicroOpLink.values[m['link']!],
+      pcOffset = m['pcOffset'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'link': link.value,
+    'pcOffset': pcOffset,
+  };
+
   @override
   String toString() => 'WriteLinkRegisterMicroOp($link, $pcOffset)';
+
+  static const int funct = 15;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'link': const BitRange(5, 7),
+    'pcOffset': BitRange(8, 8 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
 class InterruptHoldMicroOp extends MicroOp {
   const InterruptHoldMicroOp();
 
+  const InterruptHoldMicroOp.map(Map<String, int> _);
+
+  @override
+  Map<String, int> toMap() => {'funct': funct};
+
   @override
   String toString() => 'InterruptHoldMicroOp()';
+
+  static const int funct = 16;
+
+  static BitStruct struct(Mxlen _) => BitStruct({'funct': MicroOp.functRange});
 }
 
 /// {@category microcode}
@@ -312,8 +839,30 @@ class LoadReservedMicroOp extends MicroOp {
 
   const LoadReservedMicroOp(this.base, this.dest, this.size);
 
+  const LoadReservedMicroOp.map(Map<String, int> m)
+    : base = MicroOpField.values[m['base']!],
+      dest = MicroOpField.values[m['dest']!],
+      size = MicroOpMemSize.values[m['size']!];
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'base': base.value,
+    'dest': dest.value,
+    'size': size.value,
+  };
+
   @override
   String toString() => 'LoadReservedMicroOp($base, $dest, $size)';
+
+  static const int funct = 17;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'base': const BitRange(5, 8),
+    'dest': const BitRange(9, 12),
+    'size': const BitRange(13, 14),
+  });
 }
 
 /// {@category microcode}
@@ -330,28 +879,82 @@ class StoreConditionalMicroOp extends MicroOp {
     required this.size,
   });
 
+  const StoreConditionalMicroOp.map(Map<String, int> m)
+    : base = MicroOpField.values[m['base']!],
+      src = MicroOpField.values[m['src']!],
+      dest = MicroOpField.values[m['dest']!],
+      size = MicroOpMemSize.values[m['size']!];
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'base': base.value,
+    'src': src.value,
+    'dest': dest.value,
+    'size': size.value,
+  };
+
   @override
   String toString() => 'StoreConditionalMicroOp($base, $src, $dest, $size)';
+
+  static const int funct = 18;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'base': const BitRange(5, 8),
+    'src': const BitRange(9, 12),
+    'dest': const BitRange(13, 16),
+    'size': const BitRange(17, 18),
+  });
 }
 
 /// {@category microcode}
 class AtomicMemoryMicroOp extends MicroOp {
-  final MicroOpAtomicFunct funct;
+  final MicroOpAtomicFunct afunct;
   final MicroOpField base;
   final MicroOpField src;
   final MicroOpField dest;
   final MicroOpMemSize size;
 
   const AtomicMemoryMicroOp({
-    required this.funct,
+    required MicroOpAtomicFunct funct,
     required this.base,
     required this.src,
     required this.dest,
     required this.size,
-  });
+  }) : afunct = funct;
+
+  const AtomicMemoryMicroOp.map(Map<String, int> m)
+    : afunct = MicroOpAtomicFunct.values[m['afunct']!],
+      base = MicroOpField.values[m['base']!],
+      src = MicroOpField.values[m['src']!],
+      dest = MicroOpField.values[m['dest']!],
+      size = MicroOpMemSize.values[m['size']!];
 
   @override
-  String toString() => 'AtomicMemoryMicroOp($funct, $base, $src, $dest, $size)';
+  Map<String, int> toMap() => {
+    'funct': AtomicMemoryMicroOp.funct,
+    'afunct': afunct.value,
+    'base': base.value,
+    'src': src.value,
+    'dest': dest.value,
+    'size': size.value,
+  };
+
+  @override
+  String toString() =>
+      'AtomicMemoryMicroOp($afunct, $base, $src, $dest, $size)';
+
+  static const int funct = 19;
+
+  static BitStruct struct(Mxlen _) => BitStruct({
+    'funct': MicroOp.functRange,
+    'afunct': const BitRange(5, 8),
+    'base': const BitRange(9, 12),
+    'src': const BitRange(13, 16),
+    'dest': const BitRange(17, 20),
+    'size': const BitRange(21, 22),
+  });
 }
 
 /// {@category microcode}
@@ -362,8 +965,30 @@ class ValidateFieldMicroOp extends MicroOp {
 
   const ValidateFieldMicroOp(this.condition, this.field, this.value);
 
+  const ValidateFieldMicroOp.map(Map<String, int> m)
+    : condition = MicroOpCondition.values[m['condition']!],
+      field = MicroOpField.values[m['field']!],
+      value = m['value'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'condition': condition.value,
+    'field': field.value,
+    'value': value,
+  };
+
   @override
   String toString() => 'ValidateFieldMicroOp($condition, $field, $value)';
+
+  static const int funct = 20;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'condition': const BitRange(5, 8),
+    'field': const BitRange(9, 12),
+    'value': BitRange(12, 12 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
@@ -373,11 +998,55 @@ class SetFieldMicroOp extends MicroOp {
 
   const SetFieldMicroOp(this.field, this.value);
 
+  const SetFieldMicroOp.map(Map<String, int> m)
+    : field = MicroOpField.values[m['field']!],
+      value = m['value'] ?? 0;
+
+  @override
+  Map<String, int> toMap() => {
+    'funct': funct,
+    'field': field.value,
+    'value': value,
+  };
+
   @override
   String toString() => 'SetFieldMicroOp($field, $value)';
+
+  static const int funct = 21;
+
+  static BitStruct struct(Mxlen mxlen) => BitStruct({
+    'funct': MicroOp.functRange,
+    'field': const BitRange(5, 8),
+    'value': BitRange(9, 9 + mxlen.size),
+  });
 }
 
 /// {@category microcode}
+class ReadCsrMicroOp extends MicroOp {
+  final MicroOpField source;
+
+  const ReadCsrMicroOp(this.source);
+
+  const ReadCsrMicroOp.map(Map<String, int> m)
+    : source = MicroOpField.values[m['source']!];
+
+  @override
+  Map<String, int> toMap() => {'funct': funct, 'source': source.value};
+
+  @override
+  String toString() => 'ReadCsrMicroOp($source)';
+
+  // NOTE: must be unique, SetField uses 21
+  static const int funct = 22;
+
+  static BitStruct struct(Mxlen _) =>
+      BitStruct({'funct': MicroOp.functRange, 'source': const BitRange(5, 8)});
+}
+
+/// ---------------------------------------------------------------------------
+/// Operation / RiscVExtension / Microcode
+/// ---------------------------------------------------------------------------
+
 class OperationDecodePattern {
   final int mask;
   final int value;
@@ -438,7 +1107,7 @@ class Operation<T extends InstructionType> {
   });
 
   Map<int, MicroOp> get indexedMicrocode {
-    Map<int, MicroOp> map = {};
+    final map = <int, MicroOp>{};
     var i = 0;
     for (final mop in microcode) {
       map[i++] = mop;
@@ -447,8 +1116,8 @@ class Operation<T extends InstructionType> {
   }
 
   OperationDecodePattern decodePattern(int index) {
-    int mask = 0;
-    int value = 0;
+    var mask = 0;
+    var value = 0;
 
     void bind(BitRange range, int? fieldValue, {bool nonZero = false}) {
       if (fieldValue == null && !nonZero) return;
@@ -463,15 +1132,17 @@ class Operation<T extends InstructionType> {
 
     if (funct2 != null) bind(struct.mapping['funct2']!, funct2);
 
-    if (funct3 != null && struct.mapping['funct3'] != null)
+    if (funct3 != null && struct.mapping['funct3'] != null) {
       bind(struct.mapping['funct3']!, funct3);
+    }
 
     if (funct4 != null) bind(struct.mapping['funct4']!, funct4);
 
     if (funct6 != null) bind(struct.mapping['funct6']!, funct6);
 
-    if (funct7 != null && struct.mapping['funct7'] != null)
+    if (funct7 != null && struct.mapping['funct7'] != null) {
       bind(struct.mapping['funct7']!, funct7);
+    }
 
     if (funct12 != null) bind(struct.mapping['funct12']!, funct12);
 
@@ -523,18 +1194,33 @@ class Operation<T extends InstructionType> {
   }
 
   Map<String, int>? mapDecode(int instr) {
-    final map = struct!.decode(instr);
-    if (!_mapMatch(map)) return null;
-    return map;
+    final decoded = struct.decode(instr);
+    if (!_mapMatch(decoded)) return null;
+    return decoded;
   }
 
   T? decode(int instr) {
-    final map = mapDecode(instr);
-    if (map == null) return null;
-    return constructor!(map);
+    final m = mapDecode(instr);
+    if (m == null) return null;
+    return constructor(m);
   }
 
   bool matches(InstructionType instr) => _mapMatch(instr.toMap());
+
+  int microcodeWidth(Mxlen mxlen) => microcode
+      .map((mop) {
+        final m = mop.toMap();
+        final funct = m['funct']!;
+        final e = kMicroOpTable.firstWhere((e) => e.funct == funct);
+        final s = e.struct(mxlen);
+
+        for (final field in s.mapping.entries) {
+          m[field.key] = field.value.mask;
+        }
+
+        return s.encode(m).bitLength;
+      })
+      .fold(0, (a, b) => a > b ? a : b);
 
   @override
   String toString() =>
@@ -561,8 +1247,9 @@ class RiscVExtension {
     for (final op in operations) {
       if (op.opcode == opcode &&
           op.funct3 == funct3 &&
-          (op.funct7 == null || op.funct7 == funct7))
+          (op.funct7 == null || op.funct7 == funct7)) {
         return op;
+      }
     }
     return null;
   }
@@ -612,6 +1299,10 @@ class Microcode {
 
   const Microcode(this.map);
 
+  int width(Mxlen mxlen) => map.values
+      .map((op) => op.microcodeWidth(mxlen))
+      .fold(0, (a, b) => a > b ? a : b);
+
   Map<(int instrIdx, int step), MicroOp> get microOpAt {
     final table = <(int, int), MicroOp>{};
 
@@ -648,83 +1339,85 @@ class Microcode {
   }
 
   Map<int, MicroOpSeq> get microOpSequences {
-    Map<int, MicroOpSeq> map = {};
+    final result = <int, MicroOpSeq>{};
     for (final entry in indices.entries) {
       final pattern = entry.key;
       final instrIdx = entry.value;
 
-      final op = this.map[pattern]!;
+      final op = map[pattern]!;
       final seq = MicroOpSeq(
         op.microcode
             .map((mop) => opIndices[mop.runtimeType.toString()]!)
             .toList(),
       );
 
-      map[instrIdx] = seq;
+      result[instrIdx] = seq;
     }
-    return map;
+    return result;
   }
 
   Map<MicroOpSeq, int> get microOpIndices {
-    Map<MicroOpSeq, int> map = {};
+    final result = <MicroOpSeq, int>{};
     var i = 0;
-    for (final op in this.map.values) {
+    for (final op in map.values) {
       final ilist = MicroOpSeq(
         op.microcode
             .map((mop) => opIndices[mop.runtimeType.toString()]!)
             .toList(),
       );
-      if (map.containsKey(ilist)) continue;
+      if (result.containsKey(ilist)) continue;
 
-      map[ilist] = i++;
+      result[ilist] = i++;
     }
-    return map;
+    return result;
   }
 
   Map<String, int> get opIndices {
-    Map<String, int> map = {};
+    final result = <String, int>{};
     var i = 0;
-    for (final op in this.map.values) {
+    for (final op in map.values) {
       for (final mop in op.microcode) {
         final key = mop.runtimeType.toString();
-        if (map.containsKey(key)) continue;
-        map[key] = i++;
+        if (result.containsKey(key)) continue;
+        result[key] = i++;
       }
     }
-    return map;
+    return result;
   }
 
   Map<OperationDecodePattern, int> get indices {
-    Map<OperationDecodePattern, int> map = {};
+    final result = <OperationDecodePattern, int>{};
     var i = 0;
-    for (final key in this.map.keys) {
-      map[key] = i++;
+    for (final key in map.keys) {
+      result[key] = i++;
     }
-    return map;
+    return result;
   }
 
   Map<String, Map<OperationDecodePattern, BitRange>> get fields {
-    Map<String, Map<OperationDecodePattern, BitRange>> map = {};
-    for (final entry in this.map.entries) {
+    final result = <String, Map<OperationDecodePattern, BitRange>>{};
+    for (final entry in map.entries) {
       final struct = entry.value.struct;
       for (final field in struct.mapping.entries) {
-        map[field.key] ??= {};
-        map[field.key]![entry.key] = field.value;
+        result[field.key] ??= {};
+        result[field.key]![entry.key] = field.value;
       }
     }
-    return map;
+    return result;
   }
 
   Operation<InstructionType>? lookup(int instr) {
     for (final entry in map.entries) {
-      final map = entry.value.struct.decode(instr);
+      final decoded = entry.value.struct.decode(instr);
 
       for (final field in entry.key.nonZeroFields.keys) {
-        map[field] = 1;
+        decoded[field] = 1;
       }
 
-      final temp = entry.value.struct.encode(map);
-      if ((temp & entry.key.mask) == entry.key.value) return entry.value;
+      final temp = entry.value.struct.encode(decoded);
+      if ((temp & entry.key.mask) == entry.key.value) {
+        return entry.value;
+      }
     }
     return null;
   }
@@ -732,7 +1425,7 @@ class Microcode {
   InstructionType? decode(int instr) {
     final op = lookup(instr);
     if (op == null) return null;
-    return op!.decode(instr);
+    return op.decode(instr);
   }
 
   /// Builds the operations list
@@ -741,8 +1434,10 @@ class Microcode {
   static List<Operation<InstructionType>> buildOperations(
     List<RiscVExtension> extensions,
   ) {
-    List<Operation<InstructionType>> list = [];
-    for (final ext in extensions) list.addAll(ext.operations);
+    final list = <Operation<InstructionType>>[];
+    for (final ext in extensions) {
+      list.addAll(ext.operations);
+    }
     return list;
   }
 
@@ -753,7 +1448,7 @@ class Microcode {
   static List<OperationDecodePattern> buildDecodePattern(
     List<RiscVExtension> extensions,
   ) {
-    List<OperationDecodePattern> list = [];
+    final list = <OperationDecodePattern>[];
     for (final ext in extensions) {
       final patterns = ext.decodePattern;
 

@@ -605,7 +605,7 @@ class RiverCoreEmulator {
       } else if (mop is AluMicroOp) {
         final a = state.readField(mop.a);
         final b = state.readField(mop.b);
-        switch (mop.funct) {
+        switch (mop.alu) {
           case MicroOpAluFunct.add:
             state.alu = a + b;
             break;
@@ -804,7 +804,7 @@ class RiverCoreEmulator {
               break;
             }
           default:
-            throw 'Invalid ALU function ${mop.funct}';
+            throw 'Invalid ALU function ${mop.alu}';
         }
       } else if (mop is UpdatePCMicroOp) {
         int value = mop.offset;
@@ -1137,7 +1137,7 @@ class RiverCoreEmulator {
             return v.toSigned(mop.size.bits);
           }
 
-          switch (mop.funct) {
+          switch (mop.afunct) {
             case MicroOpAtomicFunct.add:
               newVal = (sx(oldVal) + sx(srcVal)) & mask;
               break;

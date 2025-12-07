@@ -296,7 +296,7 @@ class ExecutionUnit extends Module {
                   steps.add(
                     CaseItem(Const(i, width: maxLen.bitLength), [
                       alu <
-                          (switch (mop.funct) {
+                          (switch (mop.alu) {
                             MicroOpAluFunct.add =>
                               readField(mop.a) + readField(mop.b),
                             MicroOpAluFunct.sub =>
@@ -320,9 +320,9 @@ class ExecutionUnit extends Module {
                               (readField(mop.a) - readField(mop.b))[mxlen.size -
                                       1]
                                   .zeroExtend(mxlen.size),
-                            _ => throw 'Invalid ALU function ${mop.funct}',
+                            _ => throw 'Invalid ALU function ${mop.alu}',
                           }).named(
-                            'alu_${op.mnemonic}_${mop.funct.name}_${mop.a.name}_${mop.b.name}',
+                            'alu_${op.mnemonic}_${mop.alu.name}_${mop.a.name}_${mop.b.name}',
                           ),
                       mopStep < mopStep + 1,
                     ]),
