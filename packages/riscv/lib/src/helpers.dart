@@ -11,6 +11,9 @@ class BitRange {
 
   int encode(int value) => (value & mask) << start;
   int decode(int value) => (value >> start) & mask;
+
+  @override
+  String toString() => 'BitRange($start, $end)';
 }
 
 class BitStruct {

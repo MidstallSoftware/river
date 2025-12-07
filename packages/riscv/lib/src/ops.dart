@@ -437,6 +437,15 @@ class Operation<T extends InstructionType> {
     this.microcode = const [],
   });
 
+  Map<int, MicroOp> get indexedMicrocode {
+    Map<int, MicroOp> map = {};
+    var i = 0;
+    for (final mop in microcode) {
+      map[i++] = mop;
+    }
+    return map;
+  }
+
   OperationDecodePattern decodePattern(int index) {
     int mask = 0;
     int value = 0;
@@ -572,11 +581,139 @@ class RiscVExtension {
   String toString() => name ?? 'RiscVExtension($operations, mask: $mask)';
 }
 
+class MicroOpSeq {
+  final List<int> ops;
+
+  const MicroOpSeq(this.ops);
+
+  @override
+  bool operator ==(Object other) =>
+      other is MicroOpSeq &&
+      other.ops.length == ops.length &&
+      _equalLists(other.ops, ops);
+
+  @override
+  int get hashCode => ops.fold(0, (h, e) => h * 31 + e.hashCode);
+
+  static bool _equalLists(List<int> a, List<int> b) {
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  String toString() => ops.toString();
+}
+
 /// {@category microcode}
 class Microcode {
   final Map<OperationDecodePattern, Operation<InstructionType>> map;
 
   const Microcode(this.map);
+
+  Map<(int instrIdx, int step), MicroOp> get microOpAt {
+    final table = <(int, int), MicroOp>{};
+
+    for (final entry in microOpsByInstrIndex.entries) {
+      final instrIdx = entry.key;
+      final seq = entry.value;
+      for (var i = 0; i < seq.length; i++) {
+        table[(instrIdx, i)] = seq[i];
+      }
+    }
+
+    return table;
+  }
+
+  Map<int, List<MicroOp>> get microOpsByTypeIndex {
+    final result = <int, List<MicroOp>>{};
+    for (final op in map.values) {
+      for (final mop in op.microcode) {
+        final idx = opIndices[mop.runtimeType.toString()]!;
+        (result[idx] ??= []).add(mop);
+      }
+    }
+    return result;
+  }
+
+  Map<int, List<MicroOp>> get microOpsByInstrIndex {
+    final result = <int, List<MicroOp>>{};
+    for (final entry in indices.entries) {
+      final pattern = entry.key;
+      final instrIdx = entry.value;
+      result[instrIdx] = map[pattern]!.microcode;
+    }
+    return result;
+  }
+
+  Map<int, MicroOpSeq> get microOpSequences {
+    Map<int, MicroOpSeq> map = {};
+    for (final entry in indices.entries) {
+      final pattern = entry.key;
+      final instrIdx = entry.value;
+
+      final op = this.map[pattern]!;
+      final seq = MicroOpSeq(
+        op.microcode
+            .map((mop) => opIndices[mop.runtimeType.toString()]!)
+            .toList(),
+      );
+
+      map[instrIdx] = seq;
+    }
+    return map;
+  }
+
+  Map<MicroOpSeq, int> get microOpIndices {
+    Map<MicroOpSeq, int> map = {};
+    var i = 0;
+    for (final op in this.map.values) {
+      final ilist = MicroOpSeq(
+        op.microcode
+            .map((mop) => opIndices[mop.runtimeType.toString()]!)
+            .toList(),
+      );
+      if (map.containsKey(ilist)) continue;
+
+      map[ilist] = i++;
+    }
+    return map;
+  }
+
+  Map<String, int> get opIndices {
+    Map<String, int> map = {};
+    var i = 0;
+    for (final op in this.map.values) {
+      for (final mop in op.microcode) {
+        final key = mop.runtimeType.toString();
+        if (map.containsKey(key)) continue;
+        map[key] = i++;
+      }
+    }
+    return map;
+  }
+
+  Map<OperationDecodePattern, int> get indices {
+    Map<OperationDecodePattern, int> map = {};
+    var i = 0;
+    for (final key in this.map.keys) {
+      map[key] = i++;
+    }
+    return map;
+  }
+
+  Map<String, Map<OperationDecodePattern, BitRange>> get fields {
+    Map<String, Map<OperationDecodePattern, BitRange>> map = {};
+    for (final entry in this.map.entries) {
+      final struct = entry.value.struct;
+      for (final field in struct.mapping.entries) {
+        map[field.key] ??= {};
+        map[field.key]![entry.key] = field.value;
+      }
+    }
+    return map;
+  }
 
   Operation<InstructionType>? lookup(int instr) {
     for (final entry in map.entries) {
