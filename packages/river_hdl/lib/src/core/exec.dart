@@ -152,15 +152,6 @@ class ExecutionUnit extends Module {
     final rd = Logic(name: 'rdState', width: mxlen.size);
     final imm = Logic(name: 'immState', width: mxlen.size);
 
-    clk.posedge.listen((_) {
-      print('rs1: ${rs1.value}');
-      print('rs2: ${rs2.value}');
-      print('rd: ${rd.value}');
-      print('imm: ${imm.value}');
-      print('done: ${done.value}');
-      print('alu: ${alu.value}');
-    });
-
     Logic readSource(MicroOpSource source) {
       switch (source) {
         case MicroOpSource.imm:
@@ -234,7 +225,17 @@ class ExecutionUnit extends Module {
     Sequential(clk, [
       If(
         reset,
-        then: [alu < 0, mopStep < 0, done < 0],
+        then: [
+          alu < 0,
+          mopStep < 0,
+          done < 0,
+          rs1Read.en < 0,
+          rs1Read.addr < 0,
+          rs2Read.en < 0,
+          rs2Read.addr < 0,
+          rdWrite.en < 0,
+          rdWrite.addr < 0,
+        ],
         orElse: [
           Case(
             instrIndex,
@@ -262,6 +263,12 @@ class ExecutionUnit extends Module {
 
                   steps.add(
                     CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                      mopStep < mopStep + 1,
+                    ]),
+                  );
+
+                  steps.add(
+                    CaseItem(Const(i + 2, width: maxLen.bitLength), [
                       writeField(
                         mop.source,
                         port.data + Const(mop.valueOffset, width: mxlen.size),
@@ -334,7 +341,7 @@ class ExecutionUnit extends Module {
                     mopStep < 1,
                   ]),
                   ...steps,
-                  CaseItem(Const(steps.length, width: maxLen.bitLength), [
+                  CaseItem(Const(steps.length + 1, width: maxLen.bitLength), [
                     // Indicate status of execution unit
                     done < 1,
                   ]),

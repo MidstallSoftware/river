@@ -15,7 +15,7 @@ void main() {
   test('Execution', () async {
     final microcode = Microcode(Microcode.buildDecodeMap([rv32i]));
 
-    final clk = SimpleClockGenerator(15).clk;
+    final clk = SimpleClockGenerator(20).clk;
     final reset = Logic();
 
     final input = Logic(width: 32);
@@ -66,26 +66,20 @@ void main() {
 
     await exec.build();
 
-    //print(exec.generateSynth());
-    //WaveDumper(exec);
-
     reset.inject(1);
 
     Simulator.registerAction(15, () => reset.put(0));
 
-    Simulator.setMaxSimTime(120000);
+    Simulator.setMaxSimTime(200);
     unawaited(Simulator.run());
 
-    for (var i = 0; i < 30; i++) {
+    for (var i = 0; i < 4; i++) {
       await clk.nextPosedge;
     }
 
     await Simulator.simulationEnded;
 
-    /*print(exec.done.value);
-
-    for (var i = 0; i < 32; i++) {
-      print('$i - ${reg.getData(LogicValue.ofInt(i, 5))}');
-    }*/
+    expect(exec.done.value.toBool(), isTrue);
+    expect(reg.getData(LogicValue.ofInt(5, 5))!.toInt(), 10);
   });
 }
