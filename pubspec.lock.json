@@ -300,6 +300,36 @@
       "source": "hosted",
       "version": "2.2.0"
     },
+    "rohd": {
+      "dependency": "transitive",
+      "description": {
+        "name": "rohd",
+        "sha256": "54a95316f65262d61768fd93bf005714f6ce65d52cb7c0e62be962e21f7bd932",
+        "url": "https://pub.dev"
+      },
+      "source": "hosted",
+      "version": "0.6.6"
+    },
+    "rohd_hcl": {
+      "dependency": "transitive",
+      "description": {
+        "name": "rohd_hcl",
+        "sha256": "2f97380982453f491a1eafb5349046e7f679a937825fcee7f42bdc7c2df1b8df",
+        "url": "https://pub.dev"
+      },
+      "source": "hosted",
+      "version": "0.2.1"
+    },
+    "rohd_vf": {
+      "dependency": "transitive",
+      "description": {
+        "name": "rohd_vf",
+        "sha256": "4034618094c7b31914952f19465680ce9424c04e419c7a9150c716fc3b9b83e4",
+        "url": "https://pub.dev"
+      },
+      "source": "hosted",
+      "version": "0.6.0"
+    },
     "shelf": {
       "dependency": "transitive",
       "description": {
@@ -522,6 +552,6 @@
     }
   },
   "sdks": {
-    "dart": ">=3.9.3 <4.0.0"
+    "dart": ">=3.9.4 <4.0.0"
   }
 }
