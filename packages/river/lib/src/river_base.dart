@@ -6,6 +6,22 @@ import 'clock.dart';
 import 'dev.dart';
 import 'mem.dart';
 
+/// In-Core Scaler Version
+enum IcsVersion { v1 }
+
+/// Defines the type of workloads the core is designed for
+enum RiverCoreType {
+  /// Microcontroller
+  mcu(hasCsrs: true),
+
+  /// General purpose compute
+  general(hasCsrs: true);
+
+  const RiverCoreType({required this.hasCsrs});
+
+  final bool hasCsrs;
+}
+
 /// Defines the configuration mode of the microcode
 enum MicrocodeMode {
   /// No microcode engine
@@ -76,6 +92,9 @@ class RiverCore {
   final L1Cache? l1cache;
   final bool hasSupervisor;
   final bool hasUser;
+  final RiverCoreType type;
+  final IcsVersion? icsVersion;
+  final int threads;
 
   const RiverCore({
     this.vendorId = 0,
@@ -93,6 +112,9 @@ class RiverCore {
     this.l1cache,
     this.hasSupervisor = true,
     this.hasUser = true,
+    required this.type,
+    this.icsVersion,
+    this.threads = 1,
   });
 
   const RiverCore._32({
@@ -110,6 +132,9 @@ class RiverCore {
     this.l1cache,
     this.hasSupervisor = false,
     this.hasUser = false,
+    required this.type,
+    this.icsVersion,
+    this.threads = 1,
   }) : mxlen = Mxlen.mxlen_32;
 
   const RiverCore._64({
@@ -127,6 +152,9 @@ class RiverCore {
     this.l1cache,
     this.hasSupervisor = false,
     this.hasUser = false,
+    required this.type,
+    this.icsVersion,
+    this.threads = 1,
   }) : mxlen = Mxlen.mxlen_64;
 
   String? get implementsName {
@@ -158,7 +186,7 @@ class RiverCore {
   String toString() =>
       'RiverCore(vendorId: $vendorId, archId: $archId, hartId: $hartId,'
       ' resetVector: $resetVector, clock: $clock, ${implementsName != null ? 'implements: $implementsName' : 'extensions: $extensions'}, interrupts: $interrupts,'
-      ' mmu: $mmu, microcodeMode: $microcodeMode, executionMode: $executionMode, l1Cache: $l1cache)';
+      ' mmu: $mmu, microcodeMode: $microcodeMode, executionMode: $executionMode, l1Cache: $l1cache, type: $type, icsVersion: $icsVersion, threads: $threads)';
 }
 
 /// A River SoC

@@ -589,6 +589,8 @@ class RiverCoreEmulator {
       return state;
     }
 
+    final hasAtomics = config.extensions.any((e) => e.name == 'A');
+
     for (final mop in op.microcode) {
       if (mop is WriteRegisterMicroOp) {
         final value = state.readSource(mop.source) + mop.valueOffset;
@@ -899,7 +901,7 @@ class RiverCoreEmulator {
         if (reg != Register.x0) {
           xregs[reg] = value;
         }
-      } else if (mop is ReadCsrMicroOp) {
+      } else if (mop is ReadCsrMicroOp && config.type.hasCsrs) {
         final reg = state.readField(mop.source);
 
         if (mode == PrivilegeMode.user) {
@@ -917,7 +919,7 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
-      } else if (mop is WriteCsrMicroOp) {
+      } else if (mop is WriteCsrMicroOp && config.type.hasCsrs) {
         final value = state.readSource(mop.source);
         final reg = state.readField(mop.field);
 
@@ -1045,7 +1047,7 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
-      } else if (mop is StoreConditionalMicroOp) {
+      } else if (mop is StoreConditionalMicroOp && hasAtomics) {
         final base = state.readField(mop.base);
         final addr = base + state.imm;
 
@@ -1097,7 +1099,7 @@ class RiverCoreEmulator {
           state.pc = trap(state.pc, e);
           return state;
         }
-      } else if (mop is AtomicMemoryMicroOp) {
+      } else if (mop is AtomicMemoryMicroOp && hasAtomics) {
         final base = state.readField(mop.base);
         final addr = base + state.imm;
 

@@ -24,8 +24,8 @@ class ExecutionUnit extends Module {
     Logic instrIndex,
     Map<String, Logic> instrTypeMap,
     Map<String, Logic> fields,
-    DataPortInterface csrRead,
-    DataPortInterface csrWrite,
+    DataPortInterface? csrRead,
+    DataPortInterface? csrWrite,
     DataPortInterface memRead,
     DataPortInterface memWrite,
     DataPortInterface rs1Read,
@@ -66,22 +66,27 @@ class ExecutionUnit extends Module {
       ),
     );
 
-    csrRead = csrRead.clone()
-      ..connectIO(
-        this,
-        csrRead,
-        outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
-        uniquify: (og) => 'csrRead_$og',
-      );
-    csrWrite = csrWrite.clone()
-      ..connectIO(
-        this,
-        csrWrite,
-        outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {},
-        uniquify: (og) => 'csrWrite_$og',
-      );
+    if (csrRead != null) {
+      csrRead = csrRead!.clone()
+        ..connectIO(
+          this,
+          csrRead!,
+          outputTags: {DataPortGroup.control},
+          inputTags: {DataPortGroup.data},
+          uniquify: (og) => 'csrRead_$og',
+        );
+    }
+
+    if (csrWrite != null) {
+      csrWrite = csrWrite!.clone()
+        ..connectIO(
+          this,
+          csrWrite!,
+          outputTags: {DataPortGroup.control, DataPortGroup.data},
+          inputTags: {},
+          uniquify: (og) => 'csrWrite_$og',
+        );
+    }
 
     memRead = memRead.clone()
       ..connectIO(
@@ -240,6 +245,8 @@ class ExecutionUnit extends Module {
       Logic medeleg,
     ) {
       final machine = Const(PrivilegeMode.machine.id, width: 3);
+      if (csrRead == null || csrWrite == null) return machine;
+
       final supervisor = Const(PrivilegeMode.supervisor.id, width: 3);
 
       final isMachine = mode.eq(machine);
@@ -286,6 +293,15 @@ class ExecutionUnit extends Module {
       final trapInterrupt = Const(t.interrupt ? 1 : 0);
       final causeCode = Const(t.mcauseCode, width: 6);
 
+      if (csrRead == null || csrWrite == null) {
+        return [
+          trapCause < encodeCause(trapInterrupt, causeCode).slice(5, 0),
+          trapTval < (tval ?? Const(0, width: mxlen.size)),
+          output('trap') < 1,
+          done < 1,
+        ];
+      }
+
       final mideleg = Logic(width: mxlen.size);
       final medeleg = Logic(width: mxlen.size);
       final mtvec = Logic(width: mxlen.size);
@@ -301,21 +317,21 @@ class ExecutionUnit extends Module {
       );
 
       return [
-        csrRead.en < 1,
-        csrRead.addr < CsrAddress.mideleg.address,
-        mideleg < csrRead.data,
+        csrRead!.en < 1,
+        csrRead!.addr < CsrAddress.mideleg.address,
+        mideleg < csrRead!.data,
 
-        csrRead.en < 1,
-        csrRead.addr < CsrAddress.medeleg.address,
-        medeleg < csrRead.data,
+        csrRead!.en < 1,
+        csrRead!.addr < CsrAddress.medeleg.address,
+        medeleg < csrRead!.data,
 
-        csrRead.en < 1,
-        csrRead.addr < CsrAddress.mtvec.address,
-        mtvec < csrRead.data,
+        csrRead!.en < 1,
+        csrRead!.addr < CsrAddress.mtvec.address,
+        mtvec < csrRead!.data,
 
-        csrRead.en < 1,
-        csrRead.addr < CsrAddress.stvec.address,
-        stvec < csrRead.data,
+        csrRead!.en < 1,
+        csrRead!.addr < CsrAddress.stvec.address,
+        stvec < csrRead!.data,
 
         nextMode < newMode,
         trapCause < encodeCause(trapInterrupt, causeCode).slice(5, 0),
@@ -592,8 +608,8 @@ class ExecutionUnit extends Module {
                     CaseItem(Const(i, width: maxLen.bitLength), [
                       rs1Read.en < 0,
                       rs2Read.en < 0,
-                      csrRead.en < 0,
-                      csrWrite.en < 0,
+                      if (csrRead != null) csrRead.en < 0,
+                      if (csrWrite != null) csrWrite.en < 0,
                       memRead.en < 0,
                       memWrite.en < 0,
                       rdWrite.en < 0,
@@ -619,7 +635,6 @@ class ExecutionUnit extends Module {
                   ]),
                   ...steps,
                   CaseItem(Const(steps.length + 1, width: maxLen.bitLength), [
-                    // Indicate status of execution unit
                     done < 1,
                   ]),
                 ]),

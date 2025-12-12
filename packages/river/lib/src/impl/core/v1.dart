@@ -22,6 +22,7 @@ class RiverCoreV1 extends RiverCore {
          extensions: const [rvc, rv32i],
          hasSupervisor: false,
          hasUser: false,
+         type: RiverCoreType.mcu,
        );
 
   /// RC1.mi - River Core V1 micro
@@ -46,6 +47,7 @@ class RiverCoreV1 extends RiverCore {
            rv32Atomics,
            rv32i,
          ],
+         type: RiverCoreType.general,
        );
 
   /// RC1.s - River Core V1 small
@@ -72,5 +74,6 @@ class RiverCoreV1 extends RiverCore {
            rv64Atomics,
            rv32i,
          ],
+         type: RiverCoreType.general,
        );
 }
