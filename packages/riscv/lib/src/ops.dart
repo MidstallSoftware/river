@@ -1060,6 +1060,17 @@ class OperationDecodePattern {
     this.nonZeroFields,
   );
 
+  OperationDecodePattern.map(Map<String, int> m, Map<String, BitRange> fields)
+    : mask = m['mask']!,
+      value = m['value']!,
+      opIndex = m['opIndex']!,
+      nonZeroFields = Map.fromEntries(
+        m.entries.where((e) => e.key.startsWith('nzf')).map((e) {
+          final key = e.key.substring(3);
+          return MapEntry(key, fields[key]!);
+        }),
+      );
+
   OperationDecodePattern copyWith({int? opIndex}) => OperationDecodePattern(
     mask,
     value,
@@ -1067,9 +1078,46 @@ class OperationDecodePattern {
     nonZeroFields,
   );
 
+  Map<String, int> toMap() => {
+    'mask': mask,
+    'value': value,
+    'opIndex': opIndex,
+    ...nonZeroFields.map((k, _) => MapEntry('nzf$k', 1)),
+  };
+
+  int encode(int opIndexWidth, Map<int, String> fields) =>
+      struct(opIndexWidth, fields).encode(toMap());
+
   @override
   String toString() =>
       'OperationDecodePattern($mask, $value, $opIndex, $nonZeroFields)';
+
+  static BitStruct struct(int opIndexWidth, Map<int, String> fields) {
+    final mapping = <String, BitRange>{};
+    mapping['mask'] = BitRange(0, 31);
+    mapping['value'] = BitRange(32, 63);
+    mapping['opIndex'] = BitRange(64, 64 + opIndexWidth - 1);
+
+    var offset = 64 + opIndexWidth;
+
+    final sortedFields = fields.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    for (final field in sortedFields) {
+      mapping['nzf${field.key}'] = BitRange.single(offset++);
+    }
+
+    return BitStruct(mapping);
+  }
+
+  static OperationDecodePattern decode(
+    int opIndexWidth,
+    Map<int, String> indices,
+    Map<String, BitRange> ranges,
+    int value,
+  ) => OperationDecodePattern.map(
+    struct(opIndexWidth, indices).decode(value),
+    ranges,
+  );
 }
 
 /// {@category microcode}
@@ -1299,9 +1347,34 @@ class Microcode {
 
   const Microcode(this.map);
 
-  int width(Mxlen mxlen) => map.values
+  int get patternWidth => OperationDecodePattern.struct(
+    opIndices.length.bitLength,
+    fieldIndices,
+  ).width;
+
+  int opWidth(Mxlen mxlen) => map.values
       .map((op) => op.microcodeWidth(mxlen))
       .fold(0, (a, b) => a > b ? a : b);
+
+  List<int> get encodedPatterns {
+    List<int> result = [];
+    for (final pattern in map.keys) {
+      result.add(pattern.encode(opIndices.length.bitLength, fieldIndices));
+    }
+    return result;
+  }
+
+  Map<int, String> get fieldIndices {
+    final map = <String, int>{};
+    int i = 0;
+    for (final entry in this.map.entries) {
+      final struct = entry.value.struct;
+      for (final field in struct.mapping.entries) {
+        map.putIfAbsent(field.key, () => i++);
+      }
+    }
+    return map.map((k, v) => MapEntry(v, k));
+  }
 
   Map<(int instrIdx, int step), MicroOp> get microOpAt {
     final table = <(int, int), MicroOp>{};

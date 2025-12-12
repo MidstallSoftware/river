@@ -21,6 +21,7 @@ class InstructionDecoder extends Module {
     Logic input, {
     required this.microcode,
     required this.mxlen,
+    List<String> staticInstructions = const [],
     super.name = 'river_instruction_decoder',
   }) {
     input = addInput('instr', input, width: 32);

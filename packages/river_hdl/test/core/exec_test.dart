@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:rohd/rohd.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
@@ -31,7 +32,7 @@ void main() {
     final csrWrite = DataPortInterface(32, 32);
 
     final memRead = DataPortInterface(32, 32);
-    final memWrite = DataPortInterface(32, 32);
+    final memWrite = DataPortInterface(39, 32);
 
     final rs1Read = DataPortInterface(32, 5);
     final rs2Read = DataPortInterface(32, 5);
@@ -50,6 +51,7 @@ void main() {
       reset,
       Const(0, width: 32),
       Const(0, width: 32),
+      Const(PrivilegeMode.machine.id, width: 3),
       decoder.index,
       decoder.instrTypeMap,
       decoder.fields,
@@ -80,6 +82,7 @@ void main() {
     await Simulator.simulationEnded;
 
     expect(exec.done.value.toBool(), isTrue);
+    expect(exec.nextPc.value.toInt(), 4);
     expect(reg.getData(LogicValue.ofInt(5, 5))!.toInt(), 10);
   });
 }

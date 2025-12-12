@@ -49,6 +49,16 @@ class BitStruct {
     value |= range!.encode(fieldValue);
     return value;
   }
+
+  int get mask {
+    var map = <String, int>{};
+    for (final field in mapping.entries) {
+      map[field.key] = field.value.mask;
+    }
+    return encode(map);
+  }
+
+  int get width => mask.bitLength;
 }
 
 int signExtend(int value, int bits) {

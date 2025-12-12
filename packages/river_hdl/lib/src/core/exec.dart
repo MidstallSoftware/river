@@ -9,15 +9,18 @@ class ExecutionUnit extends Module {
   Logic get done => output('done');
   Logic get nextSp => output('nextSp');
   Logic get nextPc => output('nextPc');
+  Logic get nextMode => output('nextMode');
   Logic get trap => output('trap');
   Logic get trapCause => output('trapCause');
   Logic get trapTval => output('trapTval');
+  Logic get fence => output('fence');
 
   ExecutionUnit(
     Logic clk,
     Logic reset,
     Logic currentSp,
     Logic currentPc,
+    Logic currentMode,
     Logic instrIndex,
     Map<String, Logic> instrTypeMap,
     Map<String, Logic> fields,
@@ -28,16 +31,18 @@ class ExecutionUnit extends Module {
     DataPortInterface rs1Read,
     DataPortInterface rs2Read,
     DataPortInterface rdWrite, {
+    bool hasSupervisor = false,
     required this.microcode,
     required this.mxlen,
+    List<String> staticInstructions = const [],
     super.name = 'river_execution_unit',
   }) {
     clk = addInput('clk', clk);
     reset = addInput('reset', reset);
 
     currentSp = addInput('currentSp', currentSp, width: mxlen.size);
-
     currentPc = addInput('currentPc', currentPc, width: mxlen.size);
+    currentMode = addInput('currentMode', currentMode, width: 3);
 
     instrIndex = addInput(
       'instrIndex',
@@ -123,9 +128,11 @@ class ExecutionUnit extends Module {
     addOutput('done');
     addOutput('nextSp', width: mxlen.size);
     addOutput('nextPc', width: mxlen.size);
-    addOutput('trap', width: 1);
+    addOutput('nextMode', width: 3);
+    addOutput('trap');
     addOutput('trapCause', width: 6);
     addOutput('trapTval', width: mxlen.size);
+    addOutput('fence');
 
     final opIndices = microcode.opIndices;
 
@@ -222,6 +229,112 @@ class ExecutionUnit extends Module {
       }
     }
 
+    Logic compareCurrentMode(PrivilegeMode target) =>
+        currentMode.eq(Const(target.id, width: 3));
+
+    Logic selectTrapTargetMode(
+      Logic trapInterrupt,
+      Logic causeCode,
+      Logic mode,
+      Logic mideleg,
+      Logic medeleg,
+    ) {
+      final machine = Const(PrivilegeMode.machine.id, width: 3);
+      final supervisor = Const(PrivilegeMode.supervisor.id, width: 3);
+
+      final isMachine = mode.eq(machine);
+      final noSup = ~Const(hasSupervisor ? 1 : 0);
+
+      final delegatedInterrupt = mideleg[causeCode];
+      final delegatedException = medeleg[causeCode];
+
+      final goesToSupervisor = mux(
+        trapInterrupt,
+        delegatedInterrupt,
+        delegatedException,
+      );
+
+      final notMachineAndHasSup = ~isMachine & Const(hasSupervisor ? 1 : 0);
+
+      return mux(
+        notMachineAndHasSup,
+        mux(goesToSupervisor, supervisor, machine),
+        machine,
+      );
+    }
+
+    Logic encodeCause(Logic trapInterrupt, Logic causeCode) =>
+        (trapInterrupt.zeroExtend(mxlen.size) << (mxlen.size - 1)) |
+        causeCode.zeroExtend(mxlen.size);
+
+    Logic computeTrapVectorPc(
+      Logic tvec,
+      Logic causeCode,
+      Logic trapInterrupt,
+    ) {
+      final base = tvec & Const(~0x3, width: mxlen.size);
+      final mode = tvec.slice(1, 0);
+
+      final isVectored = mode.eq(Const(1, width: 2));
+
+      final vecOffset = (causeCode << 2).zeroExtend(mxlen.size);
+
+      return mux(isVectored & trapInterrupt, base + vecOffset, base);
+    }
+
+    List<Conditional> trap(Trap t, [Logic? tval]) {
+      final trapInterrupt = Const(t.interrupt ? 1 : 0);
+      final causeCode = Const(t.mcauseCode, width: 6);
+
+      final mideleg = Logic(width: mxlen.size);
+      final medeleg = Logic(width: mxlen.size);
+      final mtvec = Logic(width: mxlen.size);
+      final stvec = Logic(width: mxlen.size);
+      final tvec = Logic(width: mxlen.size);
+
+      final newMode = selectTrapTargetMode(
+        trapInterrupt,
+        causeCode,
+        currentMode,
+        mideleg,
+        medeleg,
+      );
+
+      return [
+        csrRead.en < 1,
+        csrRead.addr < CsrAddress.mideleg.address,
+        mideleg < csrRead.data,
+
+        csrRead.en < 1,
+        csrRead.addr < CsrAddress.medeleg.address,
+        medeleg < csrRead.data,
+
+        csrRead.en < 1,
+        csrRead.addr < CsrAddress.mtvec.address,
+        mtvec < csrRead.data,
+
+        csrRead.en < 1,
+        csrRead.addr < CsrAddress.stvec.address,
+        stvec < csrRead.data,
+
+        nextMode < newMode,
+        trapCause < encodeCause(trapInterrupt, causeCode).slice(0, 5),
+        trapTval < (tval ?? Const(0, width: mxlen.size)),
+
+        tvec <
+            mux(
+              newMode.eq(Const(PrivilegeMode.machine.id, width: 3)),
+              mtvec,
+              stvec,
+            ),
+
+        nextPc < computeTrapVectorPc(tvec, causeCode, trapInterrupt),
+
+        output('trap') < 1,
+        done < 1,
+      ];
+    }
+
     Sequential(clk, [
       If(
         reset,
@@ -235,6 +348,9 @@ class ExecutionUnit extends Module {
           rs2Read.addr < 0,
           rdWrite.en < 0,
           rdWrite.addr < 0,
+          fence < 0,
+          nextPc < currentPc,
+          nextSp < currentSp,
         ],
         orElse: [
           Case(
@@ -327,6 +443,164 @@ class ExecutionUnit extends Module {
                       mopStep < mopStep + 1,
                     ]),
                   );
+                } else if (mop is UpdatePCMicroOp) {
+                  Logic value = Const(mop.offset, width: mxlen.size);
+                  if (mop.offsetField != null)
+                    value = readField(mop.offsetField!);
+                  if (mop.offsetSource != null)
+                    value = readSource(mop.offsetSource!);
+                  if (mop.align) value &= Const(1, width: mxlen.size);
+
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      nextPc < (mop.absolute ? value : (currentPc + value)),
+                      mopStep < mopStep + 1,
+                    ]),
+                  );
+                } else if (mop is MemLoadMicroOp) {
+                  final base = readField(mop.base);
+                  final addr = base + imm;
+
+                  final unaligned =
+                      (addr & Const(mop.size.bytes - 1, width: mxlen.size)).neq(
+                        0,
+                      );
+
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      If(
+                        unaligned,
+                        then: trap(Trap.misalignedLoad, addr),
+                        orElse: [
+                          memRead.en < 1,
+                          memRead.addr < addr,
+                          mopStep < mopStep + 1,
+                        ],
+                      ),
+                    ]),
+                  );
+
+                  steps.add(
+                    CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                      // FIXME: respect "bool unsigned"
+                      writeField(
+                        mop.dest,
+                        memRead.data &
+                            Const((1 << mop.size.bits) - 1, width: mxlen.size),
+                      ),
+                    ]),
+                  );
+                } else if (mop is MemStoreMicroOp) {
+                  final base = readField(mop.base);
+                  final value = readField(mop.src);
+                  final addr = base + imm;
+
+                  final unaligned =
+                      (addr & Const(mop.size.bytes - 1, width: mxlen.size)).neq(
+                        0,
+                      );
+
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      If(
+                        unaligned,
+                        then: trap(Trap.misalignedLoad, addr),
+                        orElse: [
+                          memWrite.en < 1,
+                          memWrite.addr < addr,
+                          memWrite.data <
+                              [
+                                Const(mop.size.bytes, width: 7),
+                                value,
+                              ].swizzle(),
+                          mopStep < mopStep + 1,
+                        ],
+                      ),
+                    ]),
+                  );
+                } else if (mop is TrapMicroOp) {
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      Case(currentMode, [
+                        CaseItem(
+                          Const(PrivilegeMode.machine.id, width: 3),
+                          trap(mop.kindMachine),
+                        ),
+                        CaseItem(
+                          Const(PrivilegeMode.supervisor.id, width: 3),
+                          trap(mop.kindSupervisor ?? mop.kindMachine),
+                        ),
+                        CaseItem(
+                          Const(PrivilegeMode.user.id, width: 3),
+                          trap(mop.kindUser ?? mop.kindMachine),
+                        ),
+                      ]),
+                    ]),
+                  );
+                } else if (mop is BranchIfMicroOp) {
+                  final target = readSource(mop.target);
+
+                  final value = mop.offsetField != null
+                      ? readField(mop.offsetField!)
+                      : Const(mop.offset, width: mxlen.size);
+
+                  final condition = switch (mop.condition) {
+                    MicroOpCondition.eq => target.eq(0),
+                    MicroOpCondition.ne => target.neq(0),
+                    MicroOpCondition.lt => target.lt(0),
+                    MicroOpCondition.gt => target.gt(0),
+                    MicroOpCondition.ge => target.gte(0),
+                    MicroOpCondition.le => target.lte(0),
+                  };
+
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      If(
+                        condition,
+                        then: [nextPc < value],
+                        orElse: [mopStep < mopStep + 1],
+                      ),
+                    ]),
+                  );
+                } else if (mop is WriteLinkRegisterMicroOp) {
+                  final value = nextPc + Const(mop.pcOffset, width: mxlen.size);
+
+                  Logic reg = Const(Register.x0.value, width: 5);
+                  if (mop.link.reg != null) {
+                    reg = Const(mop.link.reg!.value, width: 5);
+                  } else if (mop.link.source != null) {
+                    reg = readSource(mop.link.source!);
+                  }
+
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      If(
+                        reg.neq(Register.x0.value),
+                        then: [
+                          rdWrite.addr < reg.slice(0, 4),
+                          rdWrite.data < value,
+                          rdWrite.en < 1,
+                        ],
+                      ),
+                      mopStep < mopStep + 1,
+                    ]),
+                  );
+                } else if (mop is FenceMicroOp) {
+                  steps.add(
+                    CaseItem(Const(i, width: maxLen.bitLength), [
+                      rs1Read.en < 0,
+                      rs2Read.en < 0,
+                      csrRead.en < 0,
+                      csrWrite.en < 0,
+                      memRead.en < 0,
+                      memWrite.en < 0,
+                      rdWrite.en < 0,
+                      fence < 1,
+                      mopStep < mopStep + 1,
+                    ]),
+                  );
+                } else {
+                  print(mop);
                 }
               }
 
@@ -334,6 +608,7 @@ class ExecutionUnit extends Module {
                 Case(mopStep, [
                   CaseItem(Const(0, width: maxLen.bitLength), [
                     alu < 0,
+                    fence < 0,
                     rs1 < fields['rs1']!.zeroExtend(mxlen.size),
                     rs2 < fields['rs2']!.zeroExtend(mxlen.size),
                     rd < fields['rd']!.zeroExtend(mxlen.size),
