@@ -318,7 +318,7 @@ class ExecutionUnit extends Module {
         stvec < csrRead.data,
 
         nextMode < newMode,
-        trapCause < encodeCause(trapInterrupt, causeCode).slice(0, 5),
+        trapCause < encodeCause(trapInterrupt, causeCode).slice(5, 0),
         trapTval < (tval ?? Const(0, width: mxlen.size)),
 
         tvec <
@@ -480,13 +480,15 @@ class ExecutionUnit extends Module {
                     ]),
                   );
 
+                  final raw = memRead.data.slice(mop.size.bits - 1, 0);
+
                   steps.add(
                     CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                      // FIXME: respect "bool unsigned"
                       writeField(
                         mop.dest,
-                        memRead.data &
-                            Const((1 << mop.size.bits) - 1, width: mxlen.size),
+                        mop.unsigned
+                            ? raw.zeroExtend(mxlen.size)
+                            : raw.signExtend(mxlen.size),
                       ),
                     ]),
                   );
@@ -504,7 +506,7 @@ class ExecutionUnit extends Module {
                     CaseItem(Const(i, width: maxLen.bitLength), [
                       If(
                         unaligned,
-                        then: trap(Trap.misalignedLoad, addr),
+                        then: trap(Trap.misalignedStore, addr),
                         orElse: [
                           memWrite.en < 1,
                           memWrite.addr < addr,
@@ -577,7 +579,7 @@ class ExecutionUnit extends Module {
                       If(
                         reg.neq(Register.x0.value),
                         then: [
-                          rdWrite.addr < reg.slice(0, 4),
+                          rdWrite.addr < reg.slice(4, 0),
                           rdWrite.data < value,
                           rdWrite.en < 1,
                         ],

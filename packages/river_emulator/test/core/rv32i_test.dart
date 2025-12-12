@@ -73,7 +73,7 @@ void main() {
       final instr = 0x0042A303;
       final nextPc = await core.cycle(pc, instr);
 
-      expect(core.xregs[Register.x6], equals(0xDEADBEEF));
+      expect(core.xregs[Register.x6]!.toUnsigned(32), equals(0xDEADBEEF));
       expect(nextPc, pc + 4);
     });
 

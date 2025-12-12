@@ -213,7 +213,7 @@ const rv32i = RiscVExtension(
         MemLoadMicroOp(
           base: MicroOpField.rs1,
           size: MicroOpMemSize.word,
-          unsigned: true,
+          unsigned: false,
           dest: MicroOpField.rs2,
         ),
         WriteRegisterMicroOp(MicroOpField.rd, MicroOpSource.rs2),
