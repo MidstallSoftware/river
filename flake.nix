@@ -40,6 +40,10 @@
 
             inherit (pkgs) buildDartApplication;
 
+            gitHashes = {
+              rohd_hcl = "sha256-Ss6SHH9+oBcScVnekPc3YFe3gyF7flC5MOmXyx/K+wk=";
+            };
+
             buildDartTest =
               args:
               (buildDartApplication (
@@ -96,8 +100,12 @@
                 (
                   pname:
                   buildDartTest {
-                    inherit pname;
-                    inherit version pubspecLock;
+                    inherit
+                      pname
+                      version
+                      pubspecLock
+                      gitHashes
+                      ;
 
                     src = ./.;
                     packageRoot = "packages/${pname}";
@@ -108,7 +116,7 @@
             packages = {
               default = buildDartApplication {
                 pname = "river";
-                inherit version pubspecLock;
+                inherit version pubspecLock gitHashes;
 
                 src = ./.;
 
@@ -123,7 +131,7 @@
               };
               emulator = buildDartApplication {
                 pname = "river-emulator";
-                inherit version pubspecLock;
+                inherit version pubspecLock gitHashes;
 
                 src = ./.;
                 packageRoot = "packages/river_emulator";

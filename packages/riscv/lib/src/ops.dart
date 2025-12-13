@@ -213,13 +213,12 @@ enum MicroOpAtomicFunct {
 /// {@category microcode}
 enum MicroOpSource {
   alu(0),
-  mem(1),
-  imm(2),
-  rs1(3),
-  rs2(4),
-  sp(5),
-  rd(6),
-  pc(7);
+  imm(1),
+  rs1(2),
+  rs2(3),
+  sp(4),
+  rd(5),
+  pc(6);
 
   const MicroOpSource(this.value);
 

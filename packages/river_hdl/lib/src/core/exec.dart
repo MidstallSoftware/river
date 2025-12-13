@@ -465,7 +465,7 @@ class ExecutionUnit extends Module {
                     value = readField(mop.offsetField!);
                   if (mop.offsetSource != null)
                     value = readSource(mop.offsetSource!);
-                  if (mop.align) value &= Const(1, width: mxlen.size);
+                  if (mop.align) value &= ~Const(1, width: mxlen.size);
 
                   steps.add(
                     CaseItem(Const(i, width: maxLen.bitLength), [
@@ -575,7 +575,7 @@ class ExecutionUnit extends Module {
                     CaseItem(Const(i, width: maxLen.bitLength), [
                       If(
                         condition,
-                        then: [nextPc < value],
+                        then: [nextPc < value, done < 1],
                         orElse: [mopStep < mopStep + 1],
                       ),
                     ]),

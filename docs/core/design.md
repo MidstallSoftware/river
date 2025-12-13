@@ -121,7 +121,6 @@ If a source appears with the same name as a field, it is an alias to that field 
 will hold the same values & have the same latching behavior.
 
 - `alu` - ALU result
-- `mem` - Memory *NOT USED*
 - `imm` - Immediate
 - `rs1` - Register source 1
 - `rs2` - Register source 2
