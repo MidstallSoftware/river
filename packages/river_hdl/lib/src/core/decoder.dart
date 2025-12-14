@@ -180,10 +180,7 @@ class InstructionDecoder extends Module {
   Map<OperationDecodePattern, Logic> lookupDecode(Logic input) =>
       Map.fromEntries(
         microcode.map.entries.map((entry) {
-          var temp = Logic(
-            name: 'temp_${entry.value.mnemonic}',
-            width: mxlen.size,
-          );
+          var temp = Logic(name: 'temp_${entry.value.mnemonic}', width: 32);
 
           final nonZeroFields = Const(
             entry.key.nonZeroFields.keys
@@ -192,18 +189,18 @@ class InstructionDecoder extends Module {
                       entry.value.struct.mapping[fieldName]!.encode(1),
                 )
                 .fold(0, (a, b) => a | b),
-            width: mxlen.size,
+            width: 32,
           ).named('nzf_${entry.value.mnemonic}');
 
           temp <= input | nonZeroFields;
 
           final mask = Const(
             entry.key.mask,
-            width: mxlen.size,
+            width: 32,
           ).named('mask_${entry.value.mnemonic}');
           final value = Const(
             entry.key.value,
-            width: mxlen.size,
+            width: 32,
           ).named('value_${entry.value.mnemonic}');
 
           return MapEntry(entry.key, (temp & mask).eq(value));

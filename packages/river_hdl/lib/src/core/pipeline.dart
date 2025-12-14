@@ -56,7 +56,7 @@ class RiverPipeline extends Module {
           this,
           csrRead!,
           outputTags: {DataPortGroup.control},
-          inputTags: {DataPortGroup.data},
+          inputTags: {DataPortGroup.data, DataPortGroup.integrity},
           uniquify: (og) => 'csrRead_$og',
         );
     }
@@ -67,7 +67,7 @@ class RiverPipeline extends Module {
           this,
           csrWrite!,
           outputTags: {DataPortGroup.control, DataPortGroup.data},
-          inputTags: {},
+          inputTags: {DataPortGroup.integrity},
           uniquify: (og) => 'csrWrite_$og',
         );
     }
@@ -77,7 +77,7 @@ class RiverPipeline extends Module {
         this,
         memFetchRead,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'memFetchRead_$og',
       );
     memExecRead = memExecRead.clone()
@@ -85,7 +85,7 @@ class RiverPipeline extends Module {
         this,
         memExecRead,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'memExecRead_$og',
       );
     memWrite = memWrite.clone()
@@ -93,7 +93,7 @@ class RiverPipeline extends Module {
         this,
         memWrite,
         outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {},
+        inputTags: {DataPortGroup.integrity},
         uniquify: (og) => 'memWrite_$og',
       );
 
@@ -102,7 +102,7 @@ class RiverPipeline extends Module {
         this,
         rs1Read,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'rs1Read_$og',
       );
     rs2Read = rs2Read.clone()
@@ -110,7 +110,7 @@ class RiverPipeline extends Module {
         this,
         rs2Read,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'rs2Read_$og',
       );
     rdWrite = rdWrite.clone()
@@ -118,7 +118,7 @@ class RiverPipeline extends Module {
         this,
         rdWrite,
         outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {},
+        inputTags: {DataPortGroup.integrity},
         uniquify: (og) => 'rdWrite_$og',
       );
 

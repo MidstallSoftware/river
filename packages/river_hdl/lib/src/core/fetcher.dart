@@ -27,14 +27,15 @@ class FetchUnit extends Module {
         this,
         memRead,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
+        uniquify: (og) => 'memRead_$og',
       );
 
     addOutput('done');
     if (hasCompressed) addOutput('compressed');
     addOutput('result', width: 32);
 
-    final halfwordMask = Const(0xFFFF, width: 32);
+    final halfwordMask = Const(0xFFFF, width: pc.width);
 
     memRead.en <= enable;
     memRead.addr <= pc;
@@ -48,14 +49,17 @@ class FetchUnit extends Module {
       name: 'instrReg',
     );
 
-    done <= enable;
+    done <= enable & memRead.done & memRead.valid;
 
     if (hasCompressed) {
       compressed <=
-          (((instrReg.q & halfwordMask) & Const(0x3, width: 32)).neq(0x3));
-      result <= mux(compressed, instrReg.q & halfwordMask, instrReg.q);
+          (((instrReg.q & halfwordMask) & Const(0x3, width: pc.width)).neq(
+            0x3,
+          ));
+      result <=
+          mux(compressed, (instrReg.q & halfwordMask), instrReg.q).slice(31, 0);
     } else {
-      result <= instrReg.q;
+      result <= instrReg.q.slice(31, 0);
     }
   }
 }

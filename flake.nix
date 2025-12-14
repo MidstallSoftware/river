@@ -41,7 +41,7 @@
             inherit (pkgs) buildDartApplication;
 
             gitHashes = {
-              rohd_hcl = "sha256-Ss6SHH9+oBcScVnekPc3YFe3gyF7flC5MOmXyx/K+wk=";
+              rohd_hcl = "sha256-0Mfwu0li0ojihJ9OOFVS9N8Dv72FWwn1K8Q13YCzaMY=";
             };
 
             buildDartTest =

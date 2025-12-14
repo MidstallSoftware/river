@@ -314,9 +314,9 @@
       "dependency": "transitive",
       "description": {
         "path": ".",
-        "ref": "pull/273/head",
-        "resolved-ref": "fe8f56ff046f69a0d0f89454498ab8bb1a3e45d4",
-        "url": "https://github.com/intel/rohd-hcl.git"
+        "ref": "integration",
+        "resolved-ref": "3cac80bee7d2144750a50f29b46963f99a3c8eba",
+        "url": "https://github.com/MidstallSoftware/rohd-hcl.git"
       },
       "source": "git",
       "version": "0.2.1"

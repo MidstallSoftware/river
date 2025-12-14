@@ -74,7 +74,7 @@ class ExecutionUnit extends Module {
           this,
           csrRead!,
           outputTags: {DataPortGroup.control},
-          inputTags: {DataPortGroup.data},
+          inputTags: {DataPortGroup.data, DataPortGroup.integrity},
           uniquify: (og) => 'csrRead_$og',
         );
     }
@@ -85,7 +85,7 @@ class ExecutionUnit extends Module {
           this,
           csrWrite!,
           outputTags: {DataPortGroup.control, DataPortGroup.data},
-          inputTags: {},
+          inputTags: {DataPortGroup.integrity},
           uniquify: (og) => 'csrWrite_$og',
         );
     }
@@ -95,7 +95,7 @@ class ExecutionUnit extends Module {
         this,
         memRead,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'memRead_$og',
       );
     memWrite = memWrite.clone()
@@ -103,7 +103,7 @@ class ExecutionUnit extends Module {
         this,
         memWrite,
         outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {},
+        inputTags: {DataPortGroup.integrity},
         uniquify: (og) => 'memWrite_$og',
       );
 
@@ -112,7 +112,7 @@ class ExecutionUnit extends Module {
         this,
         rs1Read,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'rs1Read_$og',
       );
     rs2Read = rs2Read.clone()
@@ -120,7 +120,7 @@ class ExecutionUnit extends Module {
         this,
         rs2Read,
         outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data},
+        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'rs2Read_$og',
       );
     rdWrite = rdWrite.clone()
@@ -128,7 +128,7 @@ class ExecutionUnit extends Module {
         this,
         rdWrite,
         outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {},
+        inputTags: {DataPortGroup.integrity},
         uniquify: (og) => 'rdWrite_$og',
       );
 
@@ -155,7 +155,7 @@ class ExecutionUnit extends Module {
     );
 
     final maxLen = microcode.microOpSequences.values
-        .map((s) => s.ops.length + 4)
+        .map((s) => s.ops.length * 2)
         .fold(0, (a, b) => a > b ? a : b);
 
     final mopStep = Logic(name: 'mopStep', width: maxLen.bitLength);
@@ -207,15 +207,15 @@ class ExecutionUnit extends Module {
     Conditional writeField(MicroOpField field, Logic value) {
       switch (field) {
         case MicroOpField.rd:
-          return rd < value;
+          return rd < value.zeroExtend(mxlen.size);
         case MicroOpField.rs1:
-          return rs1 < value;
+          return rs1 < value.zeroExtend(mxlen.size);
         case MicroOpField.rs2:
-          return rs2 < value;
+          return rs2 < value.zeroExtend(mxlen.size);
         case MicroOpField.imm:
-          return imm < value;
+          return imm < value.zeroExtend(mxlen.size);
         case MicroOpField.sp:
-          return nextSp < value;
+          return nextSp < value.zeroExtend(mxlen.size);
         default:
           throw 'Invalid field $field';
       }
@@ -400,12 +400,6 @@ class ExecutionUnit extends Module {
 
                       steps.add(
                         CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                          mopStep < mopStep + 1,
-                        ]),
-                      );
-
-                      steps.add(
-                        CaseItem(Const(i + 2, width: maxLen.bitLength), [
                           writeField(
                             mop.source,
                             port.data +
@@ -458,6 +452,34 @@ class ExecutionUnit extends Module {
                                   (readField(mop.a) -
                                           readField(mop.b))[mxlen.size - 1]
                                       .zeroExtend(mxlen.size),
+                                MicroOpAluFunct.masked =>
+                                  readField(mop.a) & ~readField(mop.b),
+                                MicroOpAluFunct.mul =>
+                                  readField(mop.a) * readField(mop.b),
+                                MicroOpAluFunct.mulw =>
+                                  readField(mop.a) * readField(mop.b),
+                                MicroOpAluFunct.mulh =>
+                                  readField(mop.a) * readField(mop.b),
+                                MicroOpAluFunct.mulhsu =>
+                                  readField(mop.a) * readField(mop.b),
+                                MicroOpAluFunct.mulhu =>
+                                  readField(mop.a) * readField(mop.b),
+                                MicroOpAluFunct.div =>
+                                  readField(mop.a) / readField(mop.b),
+                                MicroOpAluFunct.divu =>
+                                  readField(mop.a) / readField(mop.b),
+                                MicroOpAluFunct.divuw =>
+                                  readField(mop.a) / readField(mop.b),
+                                MicroOpAluFunct.divw =>
+                                  readField(mop.a) / readField(mop.b),
+                                MicroOpAluFunct.rem =>
+                                  readField(mop.a) % readField(mop.b),
+                                MicroOpAluFunct.remu =>
+                                  readField(mop.a) % readField(mop.b),
+                                MicroOpAluFunct.remuw =>
+                                  readField(mop.a) % readField(mop.b),
+                                MicroOpAluFunct.remw =>
+                                  readField(mop.a) % readField(mop.b),
                                 _ => throw 'Invalid ALU function ${mop.alu}',
                               }).named(
                                 'alu_${op.mnemonic}_${mop.alu.name}_${mop.a.name}_${mop.b.name}',
@@ -501,10 +523,16 @@ class ExecutionUnit extends Module {
                         ]),
                       );
 
+                      steps.add(
+                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                          If(memRead.done, then: [mopStep < mopStep + 1]),
+                        ]),
+                      );
+
                       final raw = memRead.data.slice(mop.size.bits - 1, 0);
 
                       steps.add(
-                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                        CaseItem(Const(i + 2, width: maxLen.bitLength), [
                           writeField(
                             mop.dest,
                             mop.unsigned
@@ -538,6 +566,12 @@ class ExecutionUnit extends Module {
                               mopStep < mopStep + 1,
                             ],
                           ),
+                        ]),
+                      );
+
+                      steps.add(
+                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                          If(memWrite.done, then: [mopStep < mopStep + 1]),
                         ]),
                       );
                     } else if (mop is TrapMicroOp) {
