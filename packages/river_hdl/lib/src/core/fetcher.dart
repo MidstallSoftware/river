@@ -15,6 +15,7 @@ class FetchUnit extends Module {
     Logic pc,
     DataPortInterface memRead, {
     this.hasCompressed = false,
+    super.name = 'river_fetch_unit',
   }) {
     clk = addInput('clk', clk);
     reset = addInput('reset', reset);
@@ -27,52 +28,34 @@ class FetchUnit extends Module {
         memRead,
         outputTags: {DataPortGroup.control},
         inputTags: {DataPortGroup.data},
-        uniquify: (og) => 'memRead_$og',
       );
 
     addOutput('done');
     if (hasCompressed) addOutput('compressed');
     addOutput('result', width: 32);
 
-    Logic temp = Logic(name: 'temp', width: 32);
-
     final halfwordMask = Const(0xFFFF, width: 32);
 
-    Sequential(clk, [
-      If(
-        reset,
-        then: [
-          if (hasCompressed) ...[temp < 0, compressed < 0],
-          memRead.en < 0,
-          memRead.addr < 0,
-          result < 0,
-          done < 0,
-        ],
-        orElse: [
-          If(
-            enable,
-            then: [
-              memRead.en < 1,
-              memRead.addr < pc,
+    memRead.en <= enable;
+    memRead.addr <= pc;
 
-              if (hasCompressed) ...[
-                temp < memRead.data,
-                compressed <
-                    ((temp & halfwordMask) & Const(0x3, width: 32)).neq(0x3),
-                If(compressed, then: [result < temp & halfwordMask]),
-              ] else
-                result < memRead.data,
+    final instrReg = FlipFlop(
+      clk,
+      memRead.data,
+      en: enable,
+      reset: reset,
+      resetValue: 0,
+      name: 'instrReg',
+    );
 
-              done < 1,
-            ],
-            orElse: [
-              memRead.en < 0,
-              result < 0,
-              if (hasCompressed) ...[temp < 0, compressed < 0],
-            ],
-          ),
-        ],
-      ),
-    ]);
+    done <= enable;
+
+    if (hasCompressed) {
+      compressed <=
+          (((instrReg.q & halfwordMask) & Const(0x3, width: 32)).neq(0x3));
+      result <= mux(compressed, instrReg.q & halfwordMask, instrReg.q);
+    } else {
+      result <= instrReg.q;
+    }
   }
 }

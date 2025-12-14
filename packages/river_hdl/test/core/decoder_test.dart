@@ -12,15 +12,38 @@ Future<void> decoderTest<T extends InstructionType>(
   Mxlen mxlen,
   Microcode microcode,
 ) async {
-  final input = Logic(width: 32);
-  input <= Const(instr, width: 32);
+  final clk = SimpleClockGenerator(5).clk;
 
-  final decoder = InstructionDecoder(input, microcode: microcode, mxlen: mxlen);
+  final reset = Logic();
+  final enable = Logic();
+  final input = Const(instr, width: 32);
+
+  final decoder = InstructionDecoder(
+    clk,
+    reset,
+    enable,
+    input,
+    microcode: microcode,
+    mxlen: mxlen,
+  );
 
   await decoder.build();
 
-  Simulator.setMaxSimTime(10);
+  reset.inject(0);
+  enable.inject(0);
+
+  Simulator.registerAction(15, () {
+    reset.put(0);
+    enable.put(1);
+  });
+
+  Simulator.setMaxSimTime(30);
   unawaited(Simulator.run());
+
+  for (var i = 0; i < 4; i++) {
+    await clk.nextPosedge;
+  }
+
   await Simulator.simulationEnded;
 
   expect(decoder.valid.value.toBool(), isTrue);

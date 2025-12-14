@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:rohd/rohd.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
@@ -8,40 +7,46 @@ import 'package:river/river.dart';
 import 'package:river_hdl/river_hdl.dart';
 import 'package:test/test.dart';
 
-Future<void> execTest(
+Future<void> pipelineTest(
   int instr,
   Map<Register, int> regStates,
   Microcode microcode,
   Mxlen mxlen, {
   Map<Register, int> initRegisters = const {},
-  int maxSimTime = 200,
-  int cycleCount = 4,
+  int maxSimTime = 800,
+  int cycleCount = 8,
   int nextPc = 4,
+  int latency = 0,
 }) async {
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
   final enable = Logic();
 
-  final input = Const(instr, width: 32);
-
-  final decoder = InstructionDecoder(
-    clk,
-    reset,
-    enable,
-    input,
-    microcode: microcode,
-    mxlen: mxlen,
-  );
-
   final csrRead = DataPortInterface(32, 32);
   final csrWrite = DataPortInterface(32, 32);
 
-  final memRead = DataPortInterface(32, 32);
+  final memFetchRead = DataPortInterface(32, 32);
+  final memExecRead = DataPortInterface(32, 32);
   final memWrite = DataPortInterface(39, 32);
 
   final rs1Read = DataPortInterface(32, 5);
   final rs2Read = DataPortInterface(32, 5);
   final rdWrite = DataPortInterface(32, 5);
+
+  final mem = MemoryModel(
+    clk,
+    reset,
+    [],
+    [memFetchRead, memExecRead],
+    readLatency: latency,
+    storage: SparseMemoryStorage(
+      addrWidth: mxlen.size,
+      dataWidth: mxlen.size,
+      alignAddress: (addr) => addr,
+      onInvalidRead: (addr, dataWidth) =>
+          LogicValue.ofInt(addr.toInt() == 0 ? instr : 0, dataWidth),
+    ),
+  );
 
   final regs = RegisterFile(
     clk,
@@ -51,19 +56,17 @@ Future<void> execTest(
     numEntries: 32,
   );
 
-  final exec = ExecutionUnit(
+  final pipeline = RiverPipeline(
     clk,
     reset,
-    decoder.valid & decoder.done,
-    Const(0, width: 32),
-    Const(0, width: 32),
+    enable,
+    Const(0, width: mxlen.size),
+    Const(0, width: mxlen.size),
     Const(PrivilegeMode.machine.id, width: 3),
-    decoder.index,
-    decoder.instrTypeMap,
-    decoder.fields,
     csrRead,
     csrWrite,
-    memRead,
+    memFetchRead,
+    memExecRead,
     memWrite,
     rs1Read,
     rs2Read,
@@ -72,12 +75,11 @@ Future<void> execTest(
     mxlen: mxlen,
   );
 
-  await exec.build();
+  await pipeline.build();
 
   reset.inject(1);
-  enable.inject(0);
 
-  Simulator.registerAction(15, () {
+  Simulator.registerAction(20, () {
     reset.put(0);
 
     for (final regState in initRegisters.entries) {
@@ -87,10 +89,10 @@ Future<void> execTest(
       );
     }
 
-    enable.inject(1);
+    enable.put(1);
   });
 
-  Simulator.setMaxSimTime(maxSimTime);
+  Simulator.setMaxSimTime(maxSimTime * ((latency ~/ 36) + 1));
   unawaited(Simulator.run());
 
   for (var i = 0; i < cycleCount; i++) {
@@ -99,8 +101,8 @@ Future<void> execTest(
 
   await Simulator.simulationEnded;
 
-  expect(exec.done.value.toBool(), isTrue);
-  expect(exec.nextPc.value.toInt(), nextPc);
+  expect(pipeline.done.value.toBool(), isTrue);
+  expect(pipeline.nextPc.value.toInt(), nextPc);
 
   for (final regState in regStates.entries) {
     expect(
@@ -120,12 +122,17 @@ void main() {
 
     test(
       'addi increments register',
-      () => execTest(0x00a08293, {Register.x5: 10}, microcode, Mxlen.mxlen_32),
+      () => pipelineTest(
+        0x00a08293,
+        {Register.x5: 10},
+        microcode,
+        Mxlen.mxlen_32,
+      ),
     );
 
     test(
       'add performs register addition',
-      () => execTest(
+      () => pipelineTest(
         0x005303B3,
         {Register.x7: 16},
         microcode,
@@ -137,7 +144,7 @@ void main() {
 
     test(
       'beq takes branch when equal',
-      () => execTest(
+      () => pipelineTest(
         0x00628463,
         {},
         microcode,
@@ -150,7 +157,7 @@ void main() {
 
     test(
       'beq does not branch when not equal',
-      () => execTest(
+      () => pipelineTest(
         0x00628463,
         {},
         microcode,
@@ -163,7 +170,7 @@ void main() {
 
     test(
       'jal writes ra and jumps',
-      () => execTest(
+      () => pipelineTest(
         0x100002EF,
         {Register.x5: 4},
         microcode,
@@ -175,7 +182,7 @@ void main() {
 
     test(
       'auipc adds immediate to PC',
-      () => execTest(
+      () => pipelineTest(
         0x00010297,
         {Register.x5: 0x10000},
         microcode,
@@ -186,7 +193,7 @@ void main() {
 
     test(
       'slti sets when less-than immediate',
-      () => execTest(
+      () => pipelineTest(
         0x00A22293,
         {Register.x5: 1},
         microcode,

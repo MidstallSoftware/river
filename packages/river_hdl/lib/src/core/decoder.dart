@@ -5,6 +5,7 @@ class InstructionDecoder extends Module {
   final Mxlen mxlen;
   final Microcode microcode;
 
+  Logic get done => output('done');
   Logic get valid => output('valid');
   Logic get index => output('index');
 
@@ -18,14 +19,21 @@ class InstructionDecoder extends Module {
       Map.fromEntries(instrTypes.map((t) => MapEntry(t, output('is_$t'))));
 
   InstructionDecoder(
+    Logic clk,
+    Logic reset,
+    Logic enable,
     Logic input, {
     required this.microcode,
     required this.mxlen,
     List<String> staticInstructions = const [],
     super.name = 'river_instruction_decoder',
   }) {
+    clk = addInput('clk', clk);
+    reset = addInput('reset', reset);
+    enable = addInput('enable', enable);
     input = addInput('instr', input, width: 32);
 
+    addOutput('done');
     addOutput('valid');
     addOutput('index', width: microcode.map.length.bitLength);
     addOutput('imm', width: mxlen.size);
@@ -42,73 +50,105 @@ class InstructionDecoder extends Module {
 
     final decodeMap = lookupDecode(input);
 
-    Combinational([
-      If.block([
-        ...decodeMap.entries
-            .map(
-              (entry) => Iff(entry.value, [
-                valid < 1,
-                index <
-                    Const(
-                      microcode.indices[entry.key]! + 1,
-                      width: microcode.map.length.bitLength,
-                    ),
-                ...fields.entries.map((entry) => entry.value < 0).toList(),
-                ...instrTypeMap.entries
-                    .map((entry) => entry.value < 0)
-                    .toList(),
-                instrTypeMap[instrType(microcode.map[entry.key]!)]! < 1,
-                ...microcode.map[entry.key]!.struct.mapping.entries
-                    .where((entry) => entry.key != 'imm')
-                    .map((entry) {
-                      final fieldName = entry.key;
-                      final fieldOutput = fields[fieldName]!;
-                      final range = entry.value;
-                      final value = input
-                          .slice(range.end, range.start)
-                          .zeroExtend(fieldOutput.width)
-                          .named(fieldName);
-                      return fieldOutput < value;
-                    })
-                    .toList(),
-                fields['imm']! <
-                    switch (instrType(microcode.map[entry.key]!)) {
-                      'IType' => input.slice(31, 20).signExtend(mxlen.size),
-                      'SType' => [
-                        input.slice(31, 25),
-                        input.slice(11, 7),
-                      ].swizzle().zeroExtend(mxlen.size).signExtend(mxlen.size),
-                      'BType' => [
-                        input.slice(31, 31),
-                        input.slice(7, 7),
-                        input.slice(30, 25),
-                        input.slice(11, 8),
-                        Const(0, width: 1),
-                      ].swizzle().signExtend(mxlen.size),
-                      'UType' => [
-                        input.slice(31, 12),
-                        Const(0, width: 12),
-                      ].swizzle().signExtend(mxlen.size),
-                      'JType' => [
-                        input.slice(31, 31),
-                        input.slice(19, 12),
-                        input.slice(20, 20),
-                        input.slice(30, 21),
-                        Const(0, width: 1),
-                      ].swizzle().signExtend(mxlen.size),
-                      _ => Const(0, width: mxlen.size),
-                    },
-              ]),
-            )
-            .toList(),
-        Else([
+    Sequential(clk, [
+      If(
+        reset,
+        then: [
           valid < 0,
           index < 0,
+          done < 0,
           ...instrTypeMap.entries.map((entry) => entry.value < 0).toList(),
           ...fields.entries.map((entry) => entry.value < 0).toList(),
-        ]),
-      ]),
-    ]);
+        ],
+        orElse: [
+          If(
+            enable,
+            then: [
+              If.block([
+                ...decodeMap.entries
+                    .map(
+                      (entry) => Iff(entry.value, [
+                        valid < 1,
+                        index <
+                            Const(
+                              microcode.indices[entry.key]! + 1,
+                              width: microcode.map.length.bitLength,
+                            ),
+                        ...fields.entries
+                            .map((entry) => entry.value < 0)
+                            .toList(),
+                        ...instrTypeMap.entries
+                            .map((entry) => entry.value < 0)
+                            .toList(),
+                        instrTypeMap[instrType(microcode.map[entry.key]!)]! < 1,
+                        ...microcode.map[entry.key]!.struct.mapping.entries
+                            .where((entry) => entry.key != 'imm')
+                            .map((entry) {
+                              final fieldName = entry.key;
+                              final fieldOutput = fields[fieldName]!;
+                              final range = entry.value;
+                              final value = input
+                                  .slice(range.end, range.start)
+                                  .zeroExtend(fieldOutput.width)
+                                  .named(fieldName);
+                              return fieldOutput < value;
+                            })
+                            .toList(),
+                        fields['imm']! <
+                            switch (instrType(microcode.map[entry.key]!)) {
+                              'IType' =>
+                                input.slice(31, 20).signExtend(mxlen.size),
+                              'SType' =>
+                                [input.slice(31, 25), input.slice(11, 7)]
+                                    .swizzle()
+                                    .zeroExtend(mxlen.size)
+                                    .signExtend(mxlen.size),
+                              'BType' => [
+                                input.slice(31, 31),
+                                input.slice(7, 7),
+                                input.slice(30, 25),
+                                input.slice(11, 8),
+                                Const(0, width: 1),
+                              ].swizzle().signExtend(mxlen.size),
+                              'UType' => [
+                                input.slice(31, 12),
+                                Const(0, width: 12),
+                              ].swizzle().signExtend(mxlen.size),
+                              'JType' => [
+                                input.slice(31, 31),
+                                input.slice(19, 12),
+                                input.slice(20, 20),
+                                input.slice(30, 21),
+                                Const(0, width: 1),
+                              ].swizzle().signExtend(mxlen.size),
+                              _ => Const(0, width: mxlen.size),
+                            },
+                        done < 1,
+                      ]),
+                    )
+                    .toList(),
+                Else([
+                  valid < 0,
+                  index < 0,
+                  done < 1,
+                  ...instrTypeMap.entries
+                      .map((entry) => entry.value < 0)
+                      .toList(),
+                  ...fields.entries.map((entry) => entry.value < 0).toList(),
+                ]),
+              ]),
+            ],
+            orElse: [
+              valid < 0,
+              index < 0,
+              done < 0,
+              ...instrTypeMap.entries.map((entry) => entry.value < 0).toList(),
+              ...fields.entries.map((entry) => entry.value < 0).toList(),
+            ],
+          ),
+        ],
+      ),
+    ], reset: reset);
   }
 
   List<String> get instrTypes {

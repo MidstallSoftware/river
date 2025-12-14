@@ -18,6 +18,7 @@ class ExecutionUnit extends Module {
   ExecutionUnit(
     Logic clk,
     Logic reset,
+    Logic enable,
     Logic currentSp,
     Logic currentPc,
     Logic currentMode,
@@ -39,6 +40,7 @@ class ExecutionUnit extends Module {
   }) {
     clk = addInput('clk', clk);
     reset = addInput('reset', reset);
+    enable = addInput('enable', enable);
 
     currentSp = addInput('currentSp', currentSp, width: mxlen.size);
     currentPc = addInput('currentPc', currentPc, width: mxlen.size);
@@ -369,280 +371,289 @@ class ExecutionUnit extends Module {
           nextSp < currentSp,
         ],
         orElse: [
-          Case(
-            instrIndex,
-            microcode.indices.entries.map((entry) {
-              final op = microcode.map[entry.key]!;
-              final steps = <CaseItem>[];
+          If(
+            enable,
+            then: [
+              Case(
+                instrIndex,
+                microcode.indices.entries.map((entry) {
+                  final op = microcode.map[entry.key]!;
+                  final steps = <CaseItem>[];
 
-              for (final mop in op.indexedMicrocode.values) {
-                final i = steps.length + 1;
+                  for (final mop in op.indexedMicrocode.values) {
+                    final i = steps.length + 1;
 
-                if (mop is ReadRegisterMicroOp) {
-                  final port = mop.source == MicroOpSource.rs2
-                      ? rs2Read
-                      : rs1Read;
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      port.addr <
-                          (readField(mop.source) +
-                                  Const(mop.offset, width: mxlen.size))
-                              .slice(4, 0),
-                      port.en < 1,
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
+                    if (mop is ReadRegisterMicroOp) {
+                      final port = mop.source == MicroOpSource.rs2
+                          ? rs2Read
+                          : rs1Read;
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          port.addr <
+                              (readField(mop.source) +
+                                      Const(mop.offset, width: mxlen.size))
+                                  .slice(4, 0),
+                          port.en < 1,
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
 
-                  steps.add(
-                    CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
+                      steps.add(
+                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
 
-                  steps.add(
-                    CaseItem(Const(i + 2, width: maxLen.bitLength), [
-                      writeField(
-                        mop.source,
-                        port.data + Const(mop.valueOffset, width: mxlen.size),
-                      ),
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
-                } else if (mop is WriteRegisterMicroOp) {
-                  final addr =
-                      (readField(mop.field) +
-                              Const(mop.offset, width: mxlen.size))
-                          .slice(4, 0);
-
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      rdWrite.addr < addr,
-                      rdWrite.data <
-                          (readSource(mop.source) +
-                              Const(mop.valueOffset, width: mxlen.size)),
-                      rdWrite.en < addr.gt(0),
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
-                } else if (mop is AluMicroOp) {
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      alu <
-                          (switch (mop.alu) {
-                            MicroOpAluFunct.add =>
-                              readField(mop.a) + readField(mop.b),
-                            MicroOpAluFunct.sub =>
-                              readField(mop.a) - readField(mop.b),
-                            MicroOpAluFunct.and =>
-                              readField(mop.a) & readField(mop.b),
-                            MicroOpAluFunct.or =>
-                              readField(mop.a) | readField(mop.b),
-                            MicroOpAluFunct.xor =>
-                              readField(mop.a) ^ readField(mop.b),
-                            MicroOpAluFunct.sll =>
-                              readField(mop.a) << readField(mop.b),
-                            MicroOpAluFunct.srl =>
-                              readField(mop.a) >> readField(mop.b),
-                            MicroOpAluFunct.sra =>
-                              readField(mop.a) >> readField(mop.b),
-                            MicroOpAluFunct.slt => readField(
-                              mop.a,
-                            ).lte(readField(mop.b)).zeroExtend(mxlen.size),
-                            MicroOpAluFunct.sltu =>
-                              (readField(mop.a) - readField(mop.b))[mxlen.size -
-                                      1]
-                                  .zeroExtend(mxlen.size),
-                            _ => throw 'Invalid ALU function ${mop.alu}',
-                          }).named(
-                            'alu_${op.mnemonic}_${mop.alu.name}_${mop.a.name}_${mop.b.name}',
+                      steps.add(
+                        CaseItem(Const(i + 2, width: maxLen.bitLength), [
+                          writeField(
+                            mop.source,
+                            port.data +
+                                Const(mop.valueOffset, width: mxlen.size),
                           ),
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
-                } else if (mop is UpdatePCMicroOp) {
-                  Logic value = Const(mop.offset, width: mxlen.size);
-                  if (mop.offsetField != null)
-                    value = readField(mop.offsetField!);
-                  if (mop.offsetSource != null)
-                    value = readSource(mop.offsetSource!);
-                  if (mop.align) value &= ~Const(1, width: mxlen.size);
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is WriteRegisterMicroOp) {
+                      final addr =
+                          (readField(mop.field) +
+                                  Const(mop.offset, width: mxlen.size))
+                              .slice(4, 0);
 
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      nextPc < (mop.absolute ? value : (currentPc + value)),
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
-                } else if (mop is MemLoadMicroOp) {
-                  final base = readField(mop.base);
-                  final addr = base + imm;
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          rdWrite.addr < addr,
+                          rdWrite.data <
+                              (readSource(mop.source) +
+                                  Const(mop.valueOffset, width: mxlen.size)),
+                          rdWrite.en < addr.gt(0),
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is AluMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          alu <
+                              (switch (mop.alu) {
+                                MicroOpAluFunct.add =>
+                                  readField(mop.a) + readField(mop.b),
+                                MicroOpAluFunct.sub =>
+                                  readField(mop.a) - readField(mop.b),
+                                MicroOpAluFunct.and =>
+                                  readField(mop.a) & readField(mop.b),
+                                MicroOpAluFunct.or =>
+                                  readField(mop.a) | readField(mop.b),
+                                MicroOpAluFunct.xor =>
+                                  readField(mop.a) ^ readField(mop.b),
+                                MicroOpAluFunct.sll =>
+                                  readField(mop.a) << readField(mop.b),
+                                MicroOpAluFunct.srl =>
+                                  readField(mop.a) >> readField(mop.b),
+                                MicroOpAluFunct.sra =>
+                                  readField(mop.a) >> readField(mop.b),
+                                MicroOpAluFunct.slt => readField(
+                                  mop.a,
+                                ).lte(readField(mop.b)).zeroExtend(mxlen.size),
+                                MicroOpAluFunct.sltu =>
+                                  (readField(mop.a) -
+                                          readField(mop.b))[mxlen.size - 1]
+                                      .zeroExtend(mxlen.size),
+                                _ => throw 'Invalid ALU function ${mop.alu}',
+                              }).named(
+                                'alu_${op.mnemonic}_${mop.alu.name}_${mop.a.name}_${mop.b.name}',
+                              ),
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is UpdatePCMicroOp) {
+                      Logic value = Const(mop.offset, width: mxlen.size);
+                      if (mop.offsetField != null)
+                        value = readField(mop.offsetField!);
+                      if (mop.offsetSource != null)
+                        value = readSource(mop.offsetSource!);
+                      if (mop.align) value &= ~Const(1, width: mxlen.size);
 
-                  final unaligned =
-                      (addr & Const(mop.size.bytes - 1, width: mxlen.size)).neq(
-                        0,
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          nextPc < (mop.absolute ? value : (currentPc + value)),
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is MemLoadMicroOp) {
+                      final base = readField(mop.base);
+                      final addr = base + imm;
+
+                      final unaligned =
+                          (addr & Const(mop.size.bytes - 1, width: mxlen.size))
+                              .neq(0);
+
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            unaligned,
+                            then: trap(Trap.misalignedLoad, addr),
+                            orElse: [
+                              memRead.en < 1,
+                              memRead.addr < addr,
+                              mopStep < mopStep + 1,
+                            ],
+                          ),
+                        ]),
                       );
 
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      If(
-                        unaligned,
-                        then: trap(Trap.misalignedLoad, addr),
-                        orElse: [
-                          memRead.en < 1,
-                          memRead.addr < addr,
-                          mopStep < mopStep + 1,
-                        ],
-                      ),
-                    ]),
-                  );
+                      final raw = memRead.data.slice(mop.size.bits - 1, 0);
 
-                  final raw = memRead.data.slice(mop.size.bits - 1, 0);
-
-                  steps.add(
-                    CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                      writeField(
-                        mop.dest,
-                        mop.unsigned
-                            ? raw.zeroExtend(mxlen.size)
-                            : raw.signExtend(mxlen.size),
-                      ),
-                    ]),
-                  );
-                } else if (mop is MemStoreMicroOp) {
-                  final base = readField(mop.base);
-                  final value = readField(mop.src);
-                  final addr = base + imm;
-
-                  final unaligned =
-                      (addr & Const(mop.size.bytes - 1, width: mxlen.size)).neq(
-                        0,
+                      steps.add(
+                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
+                          writeField(
+                            mop.dest,
+                            mop.unsigned
+                                ? raw.zeroExtend(mxlen.size)
+                                : raw.signExtend(mxlen.size),
+                          ),
+                        ]),
                       );
+                    } else if (mop is MemStoreMicroOp) {
+                      final base = readField(mop.base);
+                      final value = readField(mop.src);
+                      final addr = base + imm;
 
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      If(
-                        unaligned,
-                        then: trap(Trap.misalignedStore, addr),
-                        orElse: [
-                          memWrite.en < 1,
-                          memWrite.addr < addr,
-                          memWrite.data <
-                              [
-                                Const(mop.size.bytes, width: 7),
-                                value,
-                              ].swizzle(),
+                      final unaligned =
+                          (addr & Const(mop.size.bytes - 1, width: mxlen.size))
+                              .neq(0);
+
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            unaligned,
+                            then: trap(Trap.misalignedStore, addr),
+                            orElse: [
+                              memWrite.en < 1,
+                              memWrite.addr < addr,
+                              memWrite.data <
+                                  [
+                                    Const(mop.size.bytes, width: 7),
+                                    value,
+                                  ].swizzle(),
+                              mopStep < mopStep + 1,
+                            ],
+                          ),
+                        ]),
+                      );
+                    } else if (mop is TrapMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          Case(currentMode, [
+                            CaseItem(
+                              Const(PrivilegeMode.machine.id, width: 3),
+                              trap(mop.kindMachine),
+                            ),
+                            CaseItem(
+                              Const(PrivilegeMode.supervisor.id, width: 3),
+                              trap(mop.kindSupervisor ?? mop.kindMachine),
+                            ),
+                            CaseItem(
+                              Const(PrivilegeMode.user.id, width: 3),
+                              trap(mop.kindUser ?? mop.kindMachine),
+                            ),
+                          ]),
+                        ]),
+                      );
+                    } else if (mop is BranchIfMicroOp) {
+                      final target = readSource(mop.target);
+
+                      final value = mop.offsetField != null
+                          ? readField(mop.offsetField!)
+                          : Const(mop.offset, width: mxlen.size);
+
+                      final condition = switch (mop.condition) {
+                        MicroOpCondition.eq => target.eq(0),
+                        MicroOpCondition.ne => target.neq(0),
+                        MicroOpCondition.lt => target.lt(0),
+                        MicroOpCondition.gt => target.gt(0),
+                        MicroOpCondition.ge => target.gte(0),
+                        MicroOpCondition.le => target.lte(0),
+                      };
+
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            condition,
+                            then: [nextPc < value, done < 1],
+                            orElse: [mopStep < mopStep + 1],
+                          ),
+                        ]),
+                      );
+                    } else if (mop is WriteLinkRegisterMicroOp) {
+                      final value =
+                          nextPc + Const(mop.pcOffset, width: mxlen.size);
+
+                      Logic reg = Const(Register.x0.value, width: 5);
+                      if (mop.link.reg != null) {
+                        reg = Const(mop.link.reg!.value, width: 5);
+                      } else if (mop.link.source != null) {
+                        reg = readSource(mop.link.source!);
+                      }
+
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            reg.neq(Register.x0.value),
+                            then: [
+                              rdWrite.addr < reg.slice(4, 0),
+                              rdWrite.data < value,
+                              rdWrite.en < 1,
+                            ],
+                          ),
                           mopStep < mopStep + 1,
-                        ],
-                      ),
-                    ]),
-                  );
-                } else if (mop is TrapMicroOp) {
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      Case(currentMode, [
-                        CaseItem(
-                          Const(PrivilegeMode.machine.id, width: 3),
-                          trap(mop.kindMachine),
-                        ),
-                        CaseItem(
-                          Const(PrivilegeMode.supervisor.id, width: 3),
-                          trap(mop.kindSupervisor ?? mop.kindMachine),
-                        ),
-                        CaseItem(
-                          Const(PrivilegeMode.user.id, width: 3),
-                          trap(mop.kindUser ?? mop.kindMachine),
-                        ),
-                      ]),
-                    ]),
-                  );
-                } else if (mop is BranchIfMicroOp) {
-                  final target = readSource(mop.target);
-
-                  final value = mop.offsetField != null
-                      ? readField(mop.offsetField!)
-                      : Const(mop.offset, width: mxlen.size);
-
-                  final condition = switch (mop.condition) {
-                    MicroOpCondition.eq => target.eq(0),
-                    MicroOpCondition.ne => target.neq(0),
-                    MicroOpCondition.lt => target.lt(0),
-                    MicroOpCondition.gt => target.gt(0),
-                    MicroOpCondition.ge => target.gte(0),
-                    MicroOpCondition.le => target.lte(0),
-                  };
-
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      If(
-                        condition,
-                        then: [nextPc < value, done < 1],
-                        orElse: [mopStep < mopStep + 1],
-                      ),
-                    ]),
-                  );
-                } else if (mop is WriteLinkRegisterMicroOp) {
-                  final value = nextPc + Const(mop.pcOffset, width: mxlen.size);
-
-                  Logic reg = Const(Register.x0.value, width: 5);
-                  if (mop.link.reg != null) {
-                    reg = Const(mop.link.reg!.value, width: 5);
-                  } else if (mop.link.source != null) {
-                    reg = readSource(mop.link.source!);
+                        ]),
+                      );
+                    } else if (mop is FenceMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          rs1Read.en < 0,
+                          rs2Read.en < 0,
+                          if (csrRead != null) csrRead.en < 0,
+                          if (csrWrite != null) csrWrite.en < 0,
+                          memRead.en < 0,
+                          memWrite.en < 0,
+                          rdWrite.en < 0,
+                          fence < 1,
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else {
+                      print(mop);
+                    }
                   }
 
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      If(
-                        reg.neq(Register.x0.value),
-                        then: [
-                          rdWrite.addr < reg.slice(4, 0),
-                          rdWrite.data < value,
-                          rdWrite.en < 1,
-                        ],
-                      ),
-                      mopStep < mopStep + 1,
-                    ]),
+                  return CaseItem(
+                    Const(entry.value + 1, width: instrIndex.width),
+                    [
+                      Case(mopStep, [
+                        CaseItem(Const(0, width: maxLen.bitLength), [
+                          alu < 0,
+                          fence < 0,
+                          rs1 < fields['rs1']!.zeroExtend(mxlen.size),
+                          rs2 < fields['rs2']!.zeroExtend(mxlen.size),
+                          rd < fields['rd']!.zeroExtend(mxlen.size),
+                          imm < fields['imm']!.zeroExtend(mxlen.size),
+                          mopStep < 1,
+                        ]),
+                        ...steps,
+                        CaseItem(
+                          Const(steps.length + 1, width: maxLen.bitLength),
+                          [done < 1],
+                        ),
+                      ]),
+                    ],
                   );
-                } else if (mop is FenceMicroOp) {
-                  steps.add(
-                    CaseItem(Const(i, width: maxLen.bitLength), [
-                      rs1Read.en < 0,
-                      rs2Read.en < 0,
-                      if (csrRead != null) csrRead.en < 0,
-                      if (csrWrite != null) csrWrite.en < 0,
-                      memRead.en < 0,
-                      memWrite.en < 0,
-                      rdWrite.en < 0,
-                      fence < 1,
-                      mopStep < mopStep + 1,
-                    ]),
-                  );
-                } else {
-                  print(mop);
-                }
-              }
-
-              return CaseItem(Const(entry.value + 1, width: instrIndex.width), [
-                Case(mopStep, [
-                  CaseItem(Const(0, width: maxLen.bitLength), [
-                    alu < 0,
-                    fence < 0,
-                    rs1 < fields['rs1']!.zeroExtend(mxlen.size),
-                    rs2 < fields['rs2']!.zeroExtend(mxlen.size),
-                    rd < fields['rd']!.zeroExtend(mxlen.size),
-                    imm < fields['imm']!.zeroExtend(mxlen.size),
-                    mopStep < 1,
-                  ]),
-                  ...steps,
-                  CaseItem(Const(steps.length + 1, width: maxLen.bitLength), [
-                    done < 1,
-                  ]),
-                ]),
-              ]);
-            }).toList(),
+                }).toList(),
+              ),
+            ],
           ),
         ],
       ),
-    ]);
+    ], reset: reset);
   }
 }
