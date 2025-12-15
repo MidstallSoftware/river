@@ -54,14 +54,23 @@ Future<void> fetcherTest(
     enable.put(1);
   });
 
-  Simulator.setMaxSimTime(maxSimTime * ((latency ~/ 36) + 1));
   unawaited(Simulator.run());
 
-  for (var i = 0; i < 8; i++) {
+  await clk.nextPosedge;
+
+  while (reset.value.toBool()) {
     await clk.nextPosedge;
   }
 
-  await Simulator.simulationEnded;
+  await clk.nextPosedge;
+
+  while (!fetcher.done.value.toBool()) {
+    await clk.nextPosedge;
+  }
+
+  await clk.nextPosedge;
+
+  await Simulator.endSimulation();
 
   expect(fetcher.done.value.toBool(), isTrue);
   expect(fetcher.result.value.toInt(), instr);

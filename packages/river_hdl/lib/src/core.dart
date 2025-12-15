@@ -50,32 +50,10 @@ class RiverCoreHDL extends Module {
         uniquify: (og) => 'memWrite_$og',
       );
 
-    final pipelineEnable = Logic();
-    final pcValue = Logic(name: 'pcValue', width: config.mxlen.size);
-    final spValue = Logic(name: 'spValue', width: config.mxlen.size);
-    final modeValue = Logic(name: 'modeValue', width: 3);
-
-    final pc = FlipFlop(
-      clk,
-      pcValue,
-      reset: reset,
-      en: pipelineEnable,
-      name: 'pc',
-    );
-    final sp = FlipFlop(
-      clk,
-      spValue,
-      reset: reset,
-      en: pipelineEnable,
-      name: 'sp',
-    );
-    final mode = FlipFlop(
-      clk,
-      modeValue,
-      reset: reset,
-      en: pipelineEnable,
-      name: 'mode',
-    );
+    final pipelineEnable = Logic(name: 'pipelineEnable');
+    final pc = Logic(name: 'pc', width: config.mxlen.size);
+    final sp = Logic(name: 'sp', width: config.mxlen.size);
+    final mode = Logic(name: 'mode', width: 3);
 
     final rs1Read = DataPortInterface(config.mxlen.size, 5);
     final rs2Read = DataPortInterface(config.mxlen.size, 5);
@@ -93,9 +71,9 @@ class RiverCoreHDL extends Module {
       clk,
       reset,
       pipelineEnable,
-      pc.q,
-      sp.q,
-      mode.q,
+      sp,
+      pc,
+      mode,
       // TODO: CSR's
       null,
       null,
@@ -115,21 +93,23 @@ class RiverCoreHDL extends Module {
     Sequential(clk, [
       If(
         reset,
-        then: [
-          pipelineEnable < 0,
-          pcValue < config.resetVector,
-          spValue < 0,
-          modeValue < 0,
-        ],
+        then: [pipelineEnable < 0, pc < config.resetVector, sp < 0, mode < 0],
         orElse: [
           If(
             enable,
             then: [
-              pcValue < pipeline.nextPc,
-              spValue < pipeline.nextSp,
-              modeValue < pipeline.nextMode,
-              pipelineEnable < 1,
+              If(
+                pipeline.done,
+                then: [
+                  pc < pipeline.nextPc,
+                  sp < pipeline.nextSp,
+                  mode < pipeline.nextMode,
+                  pipelineEnable < 0,
+                ],
+                orElse: [pipelineEnable < 1],
+              ),
             ],
+            orElse: [pipelineEnable < 0],
           ),
           // TODO: trap handling circuitry
         ],

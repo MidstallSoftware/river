@@ -35,31 +35,84 @@ class FetchUnit extends Module {
     if (hasCompressed) addOutput('compressed');
     addOutput('result', width: 32);
 
-    final halfwordMask = Const(0xFFFF, width: pc.width);
+    final halfwordMask = Const(0xFFFF, width: 32);
 
-    memRead.en <= enable;
-    memRead.addr <= pc;
+    final fetchAlignBits = switch (pc.width) {
+      32 => 2,
+      64 => 3,
+      _ => throw 'Unsupported XLEN=${pc.width}',
+    };
 
-    final instrReg = FlipFlop(
-      clk,
-      memRead.data,
-      en: enable,
-      reset: reset,
-      resetValue: 0,
-      name: 'instrReg',
-    );
+    final alignment = Const(~((1 << fetchAlignBits) - 1), width: pc.width);
 
-    done <= enable & memRead.done & memRead.valid;
+    final pcFetch = Logic(name: 'pcFetch', width: pc.width);
+    pcFetch <= pc & alignment;
 
-    if (hasCompressed) {
-      compressed <=
-          (((instrReg.q & halfwordMask) & Const(0x3, width: pc.width)).neq(
-            0x3,
-          ));
-      result <=
-          mux(compressed, (instrReg.q & halfwordMask), instrReg.q).slice(31, 0);
-    } else {
-      result <= instrReg.q.slice(31, 0);
-    }
+    final instr32 = Logic(name: 'instr32', width: 32);
+
+    instr32 <=
+        ((pc.width == 32)
+            ? memRead.data.slice(31, 0)
+            : mux(
+                pc[2],
+                memRead.data.slice(63, 32),
+                memRead.data.slice(31, 0),
+              ));
+
+    final isCompressed = Logic(name: 'isCompressed');
+    isCompressed <=
+        (((instr32 & halfwordMask) & Const(0x3, width: 32)).neq(0x3));
+
+    Sequential(clk, [
+      If(
+        reset,
+        then: [
+          memRead.en < 0,
+          memRead.addr < 0,
+          done < 0,
+          result < 0,
+          if (hasCompressed) compressed < 0,
+        ],
+        orElse: [
+          If(
+            enable,
+            then: [
+              memRead.en < 1,
+              memRead.addr < pcFetch,
+
+              If(
+                memRead.done & memRead.valid,
+                then: [
+                  done < 1,
+                  if (hasCompressed) ...[
+                    compressed < isCompressed,
+                    result <
+                        mux(
+                          isCompressed,
+                          (instr32 & halfwordMask),
+                          instr32,
+                        ).slice(31, 0),
+                  ] else ...[
+                    result < instr32,
+                  ],
+                ],
+                orElse: [
+                  done < 0,
+                  result < 0,
+                  if (hasCompressed) compressed < 0,
+                ],
+              ),
+            ],
+            orElse: [
+              memRead.en < 0,
+              memRead.addr < 0,
+              done < 0,
+              result < 0,
+              if (hasCompressed) compressed < 0,
+            ],
+          ),
+        ],
+      ),
+    ]);
   }
 }

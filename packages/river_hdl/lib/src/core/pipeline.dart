@@ -178,7 +178,7 @@ class RiverPipeline extends Module {
       staticInstructions: staticInstructions,
     );
 
-    Combinational([
+    Sequential(clk, [
       If(
         reset | ~exec.done,
         then: [
