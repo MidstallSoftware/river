@@ -62,8 +62,8 @@ class SizedWriteMultiDataPort extends Module {
       ..connectIO(
         this,
         source,
-        outputTags: {DataPortGroup.control, DataPortGroup.integrity},
-        inputTags: {DataPortGroup.data},
+        outputTags: {DataPortGroup.integrity},
+        inputTags: {DataPortGroup.control, DataPortGroup.data},
         uniquify: (og) => 'source_$og',
       );
 
@@ -220,8 +220,8 @@ class SizedWriteSingleDataPort extends Module {
       ..connectIO(
         this,
         source,
-        outputTags: {DataPortGroup.control, DataPortGroup.integrity},
-        inputTags: {DataPortGroup.data},
+        outputTags: {DataPortGroup.integrity},
+        inputTags: {DataPortGroup.control, DataPortGroup.data},
         uniquify: (og) => 'source_$og',
       );
 
@@ -244,6 +244,7 @@ class SizedWriteSingleDataPort extends Module {
           backingRead.addr < 0,
           backingWrite.en < 0,
           backingWrite.addr < 0,
+          backingWrite.data < 0,
         ],
         orElse: [
           If(
@@ -265,6 +266,7 @@ class SizedWriteSingleDataPort extends Module {
               backingRead.addr < 0,
               backingWrite.en < 0,
               backingWrite.addr < 0,
+              backingWrite.data < 0,
             ],
           ),
         ],

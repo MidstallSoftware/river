@@ -366,6 +366,12 @@ class ExecutionUnit extends Module {
           rs2Read.addr < 0,
           rdWrite.en < 0,
           rdWrite.addr < 0,
+          rdWrite.data < 0,
+          memRead.en < 0,
+          memRead.addr < 0,
+          memWrite.en < 0,
+          memWrite.addr < 0,
+          memWrite.data < 0,
           fence < 0,
           nextPc < currentPc,
           nextSp < currentSp,
@@ -509,6 +515,8 @@ class ExecutionUnit extends Module {
                           (addr & Const(mop.size.bytes - 1, width: mxlen.size))
                               .neq(0);
 
+                      final raw = memRead.data.slice(mop.size.bits - 1, 0);
+
                       steps.add(
                         CaseItem(Const(i, width: maxLen.bitLength), [
                           If(
@@ -517,27 +525,23 @@ class ExecutionUnit extends Module {
                             orElse: [
                               memRead.en < 1,
                               memRead.addr < addr,
-                              mopStep < mopStep + 1,
+                              If(
+                                memRead.done & memRead.valid,
+                                then: [
+                                  writeField(
+                                    mop.dest,
+                                    mop.unsigned
+                                        ? raw.zeroExtend(mxlen.size)
+                                        : raw.signExtend(mxlen.size),
+                                  ),
+                                  mopStep < mopStep + 1,
+                                ],
+                              ),
+                              If(
+                                memRead.done & ~memRead.valid,
+                                then: trap(Trap.loadAccess, addr),
+                              ),
                             ],
-                          ),
-                        ]),
-                      );
-
-                      steps.add(
-                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                          If(memRead.done, then: [mopStep < mopStep + 1]),
-                        ]),
-                      );
-
-                      final raw = memRead.data.slice(mop.size.bits - 1, 0);
-
-                      steps.add(
-                        CaseItem(Const(i + 2, width: maxLen.bitLength), [
-                          writeField(
-                            mop.dest,
-                            mop.unsigned
-                                ? raw.zeroExtend(mxlen.size)
-                                : raw.signExtend(mxlen.size),
                           ),
                         ]),
                       );
@@ -560,18 +564,22 @@ class ExecutionUnit extends Module {
                               memWrite.addr < addr,
                               memWrite.data <
                                   [
-                                    Const(mop.size.bytes, width: 7),
+                                    Const(mop.size.bits, width: 7),
                                     value,
                                   ].swizzle(),
-                              mopStep < mopStep + 1,
+                              If(
+                                memWrite.done & memWrite.valid,
+                                then: [memWrite.en < 0, mopStep < mopStep + 1],
+                              ),
+                              If(
+                                memWrite.done & ~memWrite.valid,
+                                then: [
+                                  memWrite.en < 0,
+                                  ...trap(Trap.storeAccess, addr),
+                                ],
+                              ),
                             ],
                           ),
-                        ]),
-                      );
-
-                      steps.add(
-                        CaseItem(Const(i + 1, width: maxLen.bitLength), [
-                          If(memWrite.done, then: [mopStep < mopStep + 1]),
                         ]),
                       );
                     } else if (mop is TrapMicroOp) {
@@ -695,6 +703,12 @@ class ExecutionUnit extends Module {
               rs2Read.addr < 0,
               rdWrite.en < 0,
               rdWrite.addr < 0,
+              rdWrite.data < 0,
+              memRead.en < 0,
+              memRead.addr < 0,
+              memWrite.en < 0,
+              memWrite.addr < 0,
+              memWrite.data < 0,
               fence < 0,
             ],
           ),

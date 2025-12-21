@@ -12,9 +12,11 @@ void coreTest(
   String memString,
   Map<Register, int> regStates,
   RiverCore config, {
+  Map<int, int> memStates = const {},
   Map<Register, int> initRegisters = const {},
   int nextPc = 4,
   int latency = 0,
+  int memLatency = 0,
 }) async {
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
@@ -23,6 +25,23 @@ void coreTest(
   final memFetchRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
   final memExecRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
   final memWrite = DataPortInterface(config.mxlen.size + 7, config.mxlen.size);
+
+  final backingMemRead = DataPortInterface(
+    config.mxlen.size,
+    config.mxlen.size,
+  );
+  final backingMemWrite = DataPortInterface(
+    config.mxlen.size,
+    config.mxlen.size,
+  );
+
+  SizedWriteSingleDataPort(
+    clk,
+    reset,
+    backingRead: backingMemRead,
+    backingWrite: backingMemWrite,
+    source: memWrite,
+  );
 
   final storage = SparseMemoryStorage(
     addrWidth: config.mxlen.size,
@@ -35,8 +54,8 @@ void coreTest(
   final mem = MemoryModel(
     clk,
     reset,
-    [],
-    [memFetchRead, memExecRead],
+    [backingMemWrite],
+    [memFetchRead, memExecRead, backingMemRead],
     readLatency: latency,
     storage: storage,
   );
@@ -88,16 +107,19 @@ void coreTest(
   expect(core.pipeline.done.value.toBool(), isTrue);
   expect(core.pipeline.nextPc.value.toInt(), nextPc);
 
-  for (var i = 0; i < 32; i++) {
-    final reg = Register.values[i];
-    final value = core.regs.getData(LogicValue.ofInt(reg.value, 5))!.toInt();
-    print('$reg: $value');
-  }
-
   for (final regState in regStates.entries) {
     expect(
       core.regs.getData(LogicValue.ofInt(regState.key.value, 5))!.toInt(),
       regState.value,
+    );
+  }
+
+  for (final memState in memStates.entries) {
+    expect(
+      storage
+          .getData(LogicValue.ofInt(memState.key, config.mxlen.size))!
+          .toInt(),
+      memState.value,
     );
   }
 }

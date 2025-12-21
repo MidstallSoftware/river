@@ -12,10 +12,11 @@ Future<void> execTest(
   Map<Register, int> regStates,
   Microcode microcode,
   Mxlen mxlen, {
+  Map<int, int> memStates = const {},
+  Map<int, int> initMem = const {},
   Map<Register, int> initRegisters = const {},
-  int maxSimTime = 200,
-  int cycleCount = 4,
   int nextPc = 4,
+  int memLatency = 0,
 }) async {
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
@@ -32,15 +33,43 @@ Future<void> execTest(
     mxlen: mxlen,
   );
 
-  final csrRead = DataPortInterface(32, 32);
-  final csrWrite = DataPortInterface(32, 32);
+  final csrRead = DataPortInterface(mxlen.size, 32);
+  final csrWrite = DataPortInterface(mxlen.size, 32);
 
-  final memRead = DataPortInterface(32, 32);
-  final memWrite = DataPortInterface(39, 32);
+  final memRead = DataPortInterface(mxlen.size, mxlen.size);
+  final memWrite = DataPortInterface(mxlen.size + 7, mxlen.size);
 
-  final rs1Read = DataPortInterface(32, 5);
-  final rs2Read = DataPortInterface(32, 5);
-  final rdWrite = DataPortInterface(32, 5);
+  final backingMemRead = DataPortInterface(mxlen.size, mxlen.size);
+  final backingMemWrite = DataPortInterface(mxlen.size, mxlen.size);
+
+  final storage = SparseMemoryStorage(
+    addrWidth: mxlen.size,
+    dataWidth: mxlen.size,
+    alignAddress: (addr) => addr,
+    onInvalidRead: (addr, dataWidth) =>
+        LogicValue.filled(dataWidth, LogicValue.zero),
+  );
+
+  final mem = MemoryModel(
+    clk,
+    reset,
+    [backingMemWrite],
+    [memRead, backingMemRead],
+    readLatency: memLatency,
+    storage: storage,
+  );
+
+  SizedWriteSingleDataPort(
+    clk,
+    reset,
+    backingRead: backingMemRead,
+    backingWrite: backingMemWrite,
+    source: memWrite,
+  );
+
+  final rs1Read = DataPortInterface(mxlen.size, 5);
+  final rs2Read = DataPortInterface(mxlen.size, 5);
+  final rdWrite = DataPortInterface(mxlen.size, 5);
 
   final regs = RegisterFile(
     clk,
@@ -54,8 +83,8 @@ Future<void> execTest(
     clk,
     reset,
     decoder.valid & decoder.done,
-    Const(0, width: 32),
-    Const(0, width: 32),
+    Const(0, width: mxlen.size),
+    Const(0, width: mxlen.size),
     Const(PrivilegeMode.machine.id, width: 3),
     decoder.index,
     decoder.instrTypeMap,
@@ -86,17 +115,33 @@ Future<void> execTest(
       );
     }
 
+    for (final memState in initMem.entries) {
+      storage.setData(
+        LogicValue.ofInt(memState.key, mxlen.size),
+        LogicValue.ofInt(memState.value, mxlen.size),
+      );
+    }
+
     enable.inject(1);
   });
 
-  Simulator.setMaxSimTime(maxSimTime);
   unawaited(Simulator.run());
 
-  for (var i = 0; i < cycleCount; i++) {
+  await clk.nextPosedge;
+
+  while (reset.value.toBool()) {
     await clk.nextPosedge;
   }
 
-  await Simulator.simulationEnded;
+  while (!exec.done.value.toBool()) {
+    await clk.nextPosedge;
+  }
+
+  while (exec.nextPc.value.toInt() != nextPc) {
+    await clk.nextPosedge;
+  }
+
+  await Simulator.endSimulation();
 
   expect(exec.done.value.toBool(), isTrue);
   expect(exec.nextPc.value.toInt(), nextPc);
@@ -105,6 +150,13 @@ Future<void> execTest(
     expect(
       regs.getData(LogicValue.ofInt(regState.key.value, 5))!.toInt(),
       regState.value,
+    );
+  }
+
+  for (final memState in memStates.entries) {
+    expect(
+      storage.getData(LogicValue.ofInt(memState.key, mxlen.size))!.toInt(),
+      memState.value,
     );
   }
 }
@@ -130,7 +182,30 @@ void main() {
         microcode,
         Mxlen.mxlen_32,
         initRegisters: {Register.x5: 7, Register.x6: 9},
-        maxSimTime: 800,
+      ),
+    );
+
+    test(
+      'lw loads from memory',
+      () => execTest(
+        0x0042A303,
+        {Register.x6: 0xDEADBEEF},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x20},
+        initMem: {0x24: 0xDEADBEEF},
+      ),
+    );
+
+    test(
+      'sw stores to memory',
+      () => execTest(
+        0x0062A223,
+        {},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x20, Register.x6: 0xDEADBEEF},
+        initMem: {},
       ),
     );
 
@@ -143,7 +218,6 @@ void main() {
         Mxlen.mxlen_32,
         initRegisters: {Register.x5: 5, Register.x6: 5},
         nextPc: 8,
-        maxSimTime: 800,
       ),
     );
 
@@ -156,7 +230,16 @@ void main() {
         Mxlen.mxlen_32,
         initRegisters: {Register.x5: 5, Register.x6: 7},
         nextPc: 4,
-        maxSimTime: 800,
+      ),
+    );
+
+    test(
+      'lui loads upper immediate',
+      () => execTest(
+        0x123452B7,
+        {Register.x5: 0x12345000},
+        microcode,
+        Mxlen.mxlen_32,
       ),
     );
 
@@ -168,7 +251,6 @@ void main() {
         microcode,
         Mxlen.mxlen_32,
         nextPc: 0x100,
-        maxSimTime: 800,
       ),
     );
 
@@ -179,7 +261,6 @@ void main() {
         {Register.x5: 0x10000},
         microcode,
         Mxlen.mxlen_32,
-        maxSimTime: 800,
       ),
     );
 
@@ -191,7 +272,6 @@ void main() {
         microcode,
         Mxlen.mxlen_32,
         initRegisters: {Register.x4: 5},
-        maxSimTime: 800,
       ),
     );
   });
