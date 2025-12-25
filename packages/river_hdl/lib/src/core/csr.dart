@@ -85,6 +85,7 @@ class RiscVCsrFile extends Module {
     int marchid = 0,
     int mimpid = 0,
     int mhartid = 0,
+    Logic? externalPending,
     this.hasSupervisor = false,
     this.hasUser = false,
     required DataPortInterface csrRead,
@@ -99,6 +100,16 @@ class RiscVCsrFile extends Module {
     this.reset = addInput('reset', reset);
     this.mode = addInput('mode', mode, width: 3);
 
+    if (externalPending != null)
+      externalPending = addInput(
+        'externalPending',
+        externalPending!,
+        width: externalPending!.width,
+      );
+
+    addOutput('mstatus', width: mxlen.size);
+    addOutput('mie', width: mxlen.size);
+    addOutput('mip', width: mxlen.size);
     addOutput('mideleg', width: mxlen.size);
     addOutput('medeleg', width: mxlen.size);
     addOutput('mtvec', width: mxlen.size);
@@ -170,6 +181,10 @@ class RiscVCsrFile extends Module {
     _bindBackdoorForCounters();
     _wireCounters();
 
+    mstatus <=
+        _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mstatus.address).rdData!;
+    mie <= _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mie.address).rdData!;
+    mip <= _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mip.address).rdData!;
     mideleg <=
         _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mideleg.address).rdData!;
     medeleg <=
@@ -179,6 +194,12 @@ class RiscVCsrFile extends Module {
     if (hasSupervisor)
       stvec! <=
           _csrTop.getBackdoorPortsByAddr(0, CsrAddress.stvec.address).rdData!;
+
+    if (externalPending != null) {
+      final mip = _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mip.address);
+      mip.wrEn! <= Const(1);
+      mip.wrData! <= this.mip.withSet(11, externalPending);
+    }
   }
 
   CsrTopConfig _buildConfig(Mxlen mxlen) {
@@ -241,6 +262,7 @@ class RiscVCsrFile extends Module {
         addr: CsrAddress.mip.address,
         resetValue: 0,
         width: mxlen.size,
+        isBackdoorWritable: true,
       ),
       CsrInstanceConfig(
         arch: SimpleRwCsr('mtvec'),
@@ -618,12 +640,9 @@ class RiscVCsrFile extends Module {
   Logic get misa =>
       _csrTop.getBackdoorPortsByAddr(0, CsrAddress.misa.address).rdData!;
 
-  Logic get mstatus =>
-      _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mstatus.address).rdData!;
-  Logic get mie =>
-      _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mie.address).rdData!;
-  Logic get mip =>
-      _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mip.address).rdData!;
+  Logic get mstatus => output('mstatus');
+  Logic get mie => output('mie');
+  Logic get mip => output('mip');
   Logic get mtvec => output('mtvec');
   Logic get mscratch =>
       _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mscratch.address).rdData!;

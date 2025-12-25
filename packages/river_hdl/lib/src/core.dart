@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:rohd/rohd.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
 import 'package:riscv/riscv.dart';
@@ -5,6 +7,7 @@ import 'package:river/river.dart';
 
 import 'core/csr.dart';
 import 'core/pipeline.dart';
+import 'core/int.dart';
 
 class RiverCoreHDL extends Module {
   final RiverCore config;
@@ -20,6 +23,7 @@ class RiverCoreHDL extends Module {
     DataPortInterface memFetchRead,
     DataPortInterface memExecRead,
     DataPortInterface memWrite, {
+    Map<String, Logic> srcIrqs = const {},
     super.name = 'river_core',
   }) {
     clk = addInput('clk', clk);
@@ -34,6 +38,7 @@ class RiverCoreHDL extends Module {
         inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'memFetchRead_$og',
       );
+
     memExecRead = memExecRead.clone()
       ..connectIO(
         this,
@@ -42,6 +47,7 @@ class RiverCoreHDL extends Module {
         inputTags: {DataPortGroup.data, DataPortGroup.integrity},
         uniquify: (og) => 'memExecRead_$og',
       );
+
     memWrite = memWrite.clone()
       ..connectIO(
         this,
@@ -60,6 +66,70 @@ class RiverCoreHDL extends Module {
     final rs1Read = DataPortInterface(config.mxlen.size, 5);
     final rs2Read = DataPortInterface(config.mxlen.size, 5);
     final rdWrite = DataPortInterface(config.mxlen.size, 5);
+
+    regs = RegisterFile(
+      clk,
+      reset,
+      [rdWrite],
+      [rs1Read, rs2Read],
+      numEntries: 32,
+      name: 'riscv_regfile',
+    );
+
+    int computeNumIrqs(InterruptController ic) {
+      final irqs = ic.lines.map((l) => l.irq).toList();
+      if (irqs.isEmpty) return 1;
+      final maxIrq = irqs.reduce((a, b) => a > b ? a : b);
+      return max(1, maxIrq + 1);
+    }
+
+    final interruptBundles =
+        <
+          ({
+            InterruptController cfg,
+            Logic srcIrq,
+            InterruptPortInterface ipi,
+            RiscVInterruptController ctrl,
+          })
+        >[];
+
+    for (final ic in config.interrupts) {
+      final numIrqs = computeNumIrqs(ic);
+
+      final isExternal = srcIrqs.containsKey(ic.name);
+      final srcIrq = isExternal
+          ? addInput(
+              'srcIrqLevel_${interruptBundles.length}',
+              srcIrqs[ic.name]!,
+              width: numIrqs,
+            )
+          : Logic(
+              name: 'srcIrqLevel_${interruptBundles.length}',
+              width: numIrqs,
+            );
+
+      final ipi = InterruptPortInterface(config.mxlen.size, config.mxlen.size);
+
+      final ctrl = RiscVInterruptController(ic, clk, reset, srcIrq, ipi);
+
+      ipi.en <= Const(0);
+      ipi.write <= Const(0);
+      ipi.addr <= Const(0, width: ipi.addr.width);
+      ipi.wdata <= Const(0, width: ipi.wdata.width);
+      ipi.wstrb <= Const(0, width: ipi.wstrb.width);
+
+      interruptBundles.add((cfg: ic, srcIrq: srcIrq, ipi: ipi, ctrl: ctrl));
+    }
+
+    Logic externalPending = Const(0);
+    for (final b in interruptBundles) {
+      final v = b.ctrl.irqToTargets;
+      Logic anyFromThis = Const(0);
+      for (var i = 0; i < v.width; i++) {
+        anyFromThis = anyFromThis | v[i];
+      }
+      externalPending = externalPending | anyFromThis;
+    }
 
     final csrRead = DataPortInterface(config.mxlen.size, 12);
     final csrWrite = DataPortInterface(config.mxlen.size, 12);
@@ -81,21 +151,13 @@ class RiverCoreHDL extends Module {
             marchid: config.archId,
             mimpid: config.impId,
             mhartid: config.hartId,
+            externalPending: externalPending,
             hasSupervisor: config.hasSupervisor,
             hasUser: config.hasUser,
             csrRead: csrRead,
             csrWrite: csrWrite,
           )
         : null;
-
-    regs = RegisterFile(
-      clk,
-      reset,
-      [rdWrite],
-      [rs1Read, rs2Read],
-      numEntries: 32,
-      name: 'riscv_regfile',
-    );
 
     pipeline = RiverPipeline(
       clk,
@@ -136,6 +198,11 @@ class RiverCoreHDL extends Module {
         ],
         orElse: [
           If(
+            interruptHold & externalPending,
+            then: [interruptHold < 0, pipelineEnable < 1],
+          ),
+
+          If(
             enable & ~interruptHold,
             then: [
               If(
@@ -150,12 +217,8 @@ class RiverCoreHDL extends Module {
                 orElse: [pipelineEnable < 1],
               ),
             ],
-            orElse: [
-              pipelineEnable < 0,
-              // TODO: if interrupt hold & interrupt is fired, re-enable pipeline.
-            ],
+            orElse: [pipelineEnable < 0],
           ),
-          // TODO: trap handling circuitry
         ],
       ),
     ]);
