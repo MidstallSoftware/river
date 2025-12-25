@@ -13,7 +13,9 @@ Future<void> execTest(
   Microcode microcode,
   Mxlen mxlen, {
   Map<int, int> memStates = const {},
+  Map<CsrAddress, int> csrStates = const {},
   Map<int, int> initMem = const {},
+  Map<CsrAddress, int> initCsrs = const {},
   Map<Register, int> initRegisters = const {},
   int nextPc = 4,
   int memLatency = 0,
@@ -21,6 +23,7 @@ Future<void> execTest(
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
   final enable = Logic();
+  final mode = Const(PrivilegeMode.machine.id, width: 3);
 
   final input = Const(instr, width: 32);
 
@@ -33,8 +36,18 @@ Future<void> execTest(
     mxlen: mxlen,
   );
 
-  final csrRead = DataPortInterface(mxlen.size, 32);
-  final csrWrite = DataPortInterface(mxlen.size, 32);
+  final csrRead = DataPortInterface(mxlen.size, 12);
+  final csrWrite = DataPortInterface(mxlen.size, 12);
+
+  final csrs = RiscVCsrFile(
+    clk,
+    reset,
+    mode,
+    mxlen: mxlen,
+    misa: mxlen.misa,
+    csrRead: csrRead,
+    csrWrite: csrWrite,
+  );
 
   final memRead = DataPortInterface(mxlen.size, mxlen.size);
   final memWrite = DataPortInterface(mxlen.size + 7, mxlen.size);
@@ -85,7 +98,7 @@ Future<void> execTest(
     decoder.valid & decoder.done,
     Const(0, width: mxlen.size),
     Const(0, width: mxlen.size),
-    Const(PrivilegeMode.machine.id, width: 3),
+    mode,
     decoder.index,
     decoder.instrTypeMap,
     decoder.fields,
@@ -98,9 +111,15 @@ Future<void> execTest(
     rdWrite,
     microcode: microcode,
     mxlen: mxlen,
+    mideleg: csrs.mideleg,
+    medeleg: csrs.medeleg,
+    mtvec: csrs.mtvec,
+    stvec: csrs.stvec,
   );
 
   await exec.build();
+
+  WaveDumper(exec);
 
   reset.inject(1);
   enable.inject(0);
@@ -119,6 +138,13 @@ Future<void> execTest(
       storage.setData(
         LogicValue.ofInt(memState.key, mxlen.size),
         LogicValue.ofInt(memState.value, mxlen.size),
+      );
+    }
+
+    for (final csrState in initCsrs.entries) {
+      csrs.setData(
+        LogicValue.ofInt(csrState.key.address, 12),
+        LogicValue.ofInt(csrState.value, mxlen.size),
       );
     }
 
@@ -157,6 +183,13 @@ Future<void> execTest(
     expect(
       storage.getData(LogicValue.ofInt(memState.key, mxlen.size))!.toInt(),
       memState.value,
+    );
+  }
+
+  for (final csrState in csrStates.entries) {
+    expect(
+      csrs.getData(LogicValue.ofInt(csrState.key.address, 12))!.toInt(),
+      csrState.value,
     );
   }
 }
@@ -272,6 +305,110 @@ void main() {
         microcode,
         Mxlen.mxlen_32,
         initRegisters: {Register.x4: 5},
+      ),
+    );
+  });
+
+  group('Zicsr', () {
+    final microcode = Microcode(Microcode.buildDecodeMap([rv32i, rv32Zicsr]));
+
+    test(
+      'csrrw: atomic swap (rd=old, CSR=new)',
+      () => execTest(
+        0x34029373,
+        {Register.x6: 0xAAAA},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x1234},
+        initCsrs: {CsrAddress.mscratch: 0xAAAA},
+        csrStates: {CsrAddress.mscratch: 0x1234},
+      ),
+    );
+
+    test(
+      'csrrw with rd=x0 still writes CSR but suppresses rd write',
+      () => execTest(
+        0x34029073,
+        {Register.x0: 0},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x2222},
+        initCsrs: {CsrAddress.mscratch: 0x1111},
+        csrStates: {CsrAddress.mscratch: 0x2222},
+      ),
+    );
+
+    test(
+      'csrrs: rd=old, CSR |= rs1',
+      () => execTest(
+        0x3402A373,
+        {Register.x6: 0x100},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x0F},
+        initCsrs: {CsrAddress.mscratch: 0x100},
+        csrStates: {CsrAddress.mscratch: 0x10F},
+      ),
+    );
+
+    test(
+      'csrrs with rs1=x0 only reads CSR',
+      () => execTest(
+        0x3400A073,
+        {},
+        microcode,
+        Mxlen.mxlen_32,
+        initCsrs: {CsrAddress.mscratch: 0xABCDE},
+        csrStates: {CsrAddress.mscratch: 0xABCDE},
+      ),
+    );
+
+    test(
+      'csrrc: CSR &= ~rs1',
+      () => execTest(
+        0x3402B373,
+        {Register.x6: 0xFF},
+        microcode,
+        Mxlen.mxlen_32,
+        initRegisters: {Register.x5: 0x0F},
+        initCsrs: {CsrAddress.mscratch: 0xFF},
+        csrStates: {CsrAddress.mscratch: 0xF0},
+      ),
+    );
+
+    test(
+      'csrrwi: CSR = imm, rd = old CSR',
+      () => execTest(
+        0x3402D373,
+        {Register.x6: 0x7777},
+        microcode,
+        Mxlen.mxlen_32,
+        initCsrs: {CsrAddress.mscratch: 0x7777},
+        csrStates: {CsrAddress.mscratch: 5},
+      ),
+    );
+
+    test(
+      'csrrsi: CSR |= imm',
+      () => execTest(
+        0x3401E073,
+        {},
+        microcode,
+        Mxlen.mxlen_32,
+        initCsrs: {CsrAddress.mscratch: 0x10},
+        csrStates: {CsrAddress.mscratch: 0x13},
+      ),
+    );
+
+    test(
+      'csrrsi: CSR &= ~imm',
+      () => execTest(
+        0x3401F073,
+        {},
+        microcode,
+        Mxlen.mxlen_32,
+        initCsrs: {CsrAddress.mscratch: 0xF},
+        csrStates: {CsrAddress.mscratch: 0xC},
       ),
     );
   });

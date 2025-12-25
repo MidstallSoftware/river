@@ -121,6 +121,8 @@ class InstructionDecoder extends Module {
                                 input.slice(30, 21),
                                 Const(0, width: 1),
                               ].swizzle().signExtend(mxlen.size),
+                              'SystemIType' =>
+                                input.slice(31, 20).signExtend(mxlen.size),
                               _ => Const(0, width: mxlen.size),
                             },
                         done < 1,

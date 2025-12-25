@@ -19,6 +19,7 @@ class RiverPipeline extends Module {
   Logic get trapCause => output('trapCause');
   Logic get trapTval => output('trapTval');
   Logic get fence => output('fence');
+  Logic get interruptHold => output('interruptHold');
 
   RiverPipeline(
     Logic clk,
@@ -36,9 +37,14 @@ class RiverPipeline extends Module {
     DataPortInterface rs2Read,
     DataPortInterface rdWrite, {
     bool hasSupervisor = false,
+    bool hasUser = false,
     bool hasCompressed = false,
     required this.microcode,
     required this.mxlen,
+    Logic? mideleg,
+    Logic? medeleg,
+    Logic? mtvec,
+    Logic? stvec,
     List<String> staticInstructions = const [],
     super.name = 'river_pipeline',
   }) {
@@ -122,6 +128,13 @@ class RiverPipeline extends Module {
         uniquify: (og) => 'rdWrite_$og',
       );
 
+    if (mideleg != null)
+      mideleg = addInput('mideleg', mideleg, width: mxlen.size);
+    if (medeleg != null)
+      medeleg = addInput('medeleg', medeleg, width: mxlen.size);
+    if (mtvec != null) mtvec = addInput('mtvec', mtvec, width: mxlen.size);
+    if (stvec != null) stvec = addInput('stvec', stvec, width: mxlen.size);
+
     addOutput('done');
     addOutput('valid');
     addOutput('nextSp', width: mxlen.size);
@@ -131,6 +144,7 @@ class RiverPipeline extends Module {
     addOutput('trapCause', width: 6);
     addOutput('trapTval', width: mxlen.size);
     addOutput('fence');
+    addOutput('interruptHold');
 
     final fetcher = FetchUnit(
       clk,
@@ -173,8 +187,13 @@ class RiverPipeline extends Module {
       rs2Read,
       rdWrite,
       hasSupervisor: hasSupervisor,
+      hasUser: hasUser,
       microcode: microcode,
       mxlen: mxlen,
+      mideleg: mideleg,
+      medeleg: medeleg,
+      mtvec: mtvec,
+      stvec: stvec,
       staticInstructions: staticInstructions,
     );
 
@@ -202,6 +221,7 @@ class RiverPipeline extends Module {
           trapCause < exec.trapCause,
           trapTval < exec.trapTval,
           fence < exec.fence,
+          interruptHold < exec.interruptHold,
         ],
       ),
     ]);

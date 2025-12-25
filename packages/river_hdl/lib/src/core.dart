@@ -3,6 +3,7 @@ import 'package:rohd_hcl/rohd_hcl.dart';
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
 
+import 'core/csr.dart';
 import 'core/pipeline.dart';
 
 class RiverCoreHDL extends Module {
@@ -54,10 +55,38 @@ class RiverCoreHDL extends Module {
     final pc = Logic(name: 'pc', width: config.mxlen.size);
     final sp = Logic(name: 'sp', width: config.mxlen.size);
     final mode = Logic(name: 'mode', width: 3);
+    final interruptHold = Logic(name: 'interruptHold');
 
     final rs1Read = DataPortInterface(config.mxlen.size, 5);
     final rs2Read = DataPortInterface(config.mxlen.size, 5);
     final rdWrite = DataPortInterface(config.mxlen.size, 5);
+
+    final csrRead = DataPortInterface(config.mxlen.size, 12);
+    final csrWrite = DataPortInterface(config.mxlen.size, 12);
+
+    final csrs = config.type.hasCsrs
+        ? RiscVCsrFile(
+            clk,
+            reset,
+            mode,
+            mxlen: config.mxlen,
+            misa:
+                config.extensions
+                    .map((ext) => ext.mask)
+                    .fold(0, (t, i) => t | i) |
+                config.mxlen.misa |
+                ((config.hasSupervisor ? 1 : 0) << 18) |
+                ((config.hasUser ? 1 : 0) << 20),
+            mvendorid: config.vendorId,
+            marchid: config.archId,
+            mimpid: config.impId,
+            mhartid: config.hartId,
+            hasSupervisor: config.hasSupervisor,
+            hasUser: config.hasUser,
+            csrRead: csrRead,
+            csrWrite: csrWrite,
+          )
+        : null;
 
     regs = RegisterFile(
       clk,
@@ -65,6 +94,7 @@ class RiverCoreHDL extends Module {
       [rdWrite],
       [rs1Read, rs2Read],
       numEntries: 32,
+      name: 'riscv_regfile',
     );
 
     pipeline = RiverPipeline(
@@ -74,9 +104,8 @@ class RiverCoreHDL extends Module {
       sp,
       pc,
       mode,
-      // TODO: CSR's
-      null,
-      null,
+      config.type.hasCsrs ? csrRead : null,
+      config.type.hasCsrs ? csrWrite : null,
       // TODO: have a cache backed memory interface
       memFetchRead,
       memExecRead,
@@ -87,16 +116,27 @@ class RiverCoreHDL extends Module {
       microcode: config.microcode,
       mxlen: config.mxlen,
       hasSupervisor: config.hasSupervisor,
+      hasUser: config.hasUser,
       hasCompressed: config.extensions.any((e) => e.name == 'RVC'),
+      mideleg: csrs?.mideleg,
+      medeleg: csrs?.medeleg,
+      mtvec: csrs?.mtvec,
+      stvec: csrs?.stvec,
     );
 
     Sequential(clk, [
       If(
         reset,
-        then: [pipelineEnable < 0, pc < config.resetVector, sp < 0, mode < 0],
+        then: [
+          pipelineEnable < 0,
+          pc < config.resetVector,
+          sp < 0,
+          mode < 0,
+          interruptHold < 0,
+        ],
         orElse: [
           If(
-            enable,
+            enable & ~interruptHold,
             then: [
               If(
                 pipeline.done,
@@ -104,12 +144,16 @@ class RiverCoreHDL extends Module {
                   pc < pipeline.nextPc,
                   sp < pipeline.nextSp,
                   mode < pipeline.nextMode,
+                  interruptHold < pipeline.interruptHold,
                   pipelineEnable < 0,
                 ],
                 orElse: [pipelineEnable < 1],
               ),
             ],
-            orElse: [pipelineEnable < 0],
+            orElse: [
+              pipelineEnable < 0,
+              // TODO: if interrupt hold & interrupt is fired, re-enable pipeline.
+            ],
           ),
           // TODO: trap handling circuitry
         ],

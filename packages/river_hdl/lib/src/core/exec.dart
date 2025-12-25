@@ -14,6 +14,7 @@ class ExecutionUnit extends Module {
   Logic get trapCause => output('trapCause');
   Logic get trapTval => output('trapTval');
   Logic get fence => output('fence');
+  Logic get interruptHold => output('interruptHold');
 
   ExecutionUnit(
     Logic clk,
@@ -33,8 +34,13 @@ class ExecutionUnit extends Module {
     DataPortInterface rs2Read,
     DataPortInterface rdWrite, {
     bool hasSupervisor = false,
+    bool hasUser = false,
     required this.microcode,
     required this.mxlen,
+    Logic? mideleg,
+    Logic? medeleg,
+    Logic? mtvec,
+    Logic? stvec,
     List<String> staticInstructions = const [],
     super.name = 'river_execution_unit',
   }) {
@@ -132,6 +138,13 @@ class ExecutionUnit extends Module {
         uniquify: (og) => 'rdWrite_$og',
       );
 
+    if (mideleg != null)
+      mideleg = addInput('mideleg', mideleg, width: mxlen.size);
+    if (medeleg != null)
+      medeleg = addInput('medeleg', medeleg, width: mxlen.size);
+    if (mtvec != null) mtvec = addInput('mtvec', mtvec, width: mxlen.size);
+    if (stvec != null) stvec = addInput('stvec', stvec, width: mxlen.size);
+
     addOutput('done');
     addOutput('nextSp', width: mxlen.size);
     addOutput('nextPc', width: mxlen.size);
@@ -140,6 +153,7 @@ class ExecutionUnit extends Module {
     addOutput('trapCause', width: 6);
     addOutput('trapTval', width: mxlen.size);
     addOutput('fence');
+    addOutput('interruptHold');
 
     final opIndices = microcode.opIndices;
 
@@ -221,20 +235,8 @@ class ExecutionUnit extends Module {
       }
     }
 
-    Conditional clearField(MicroOpField field) {
-      switch (field) {
-        case MicroOpField.rd:
-          return rd < fields['rd']!.zeroExtend(mxlen.size);
-        case MicroOpField.rs1:
-          return rs1 < fields['rs1']!.zeroExtend(mxlen.size);
-        case MicroOpField.rs2:
-          return rs2 < fields['rs2']!.zeroExtend(mxlen.size);
-        case MicroOpField.imm:
-          return imm < fields['imm']!.zeroExtend(mxlen.size);
-        default:
-          throw 'Invalid field $field';
-      }
-    }
+    Conditional clearField(MicroOpField field) =>
+        writeField(field, fields[field.name]!.zeroExtend(mxlen.size));
 
     Logic compareCurrentMode(PrivilegeMode target) =>
         currentMode.eq(Const(target.id, width: 3));
@@ -281,20 +283,27 @@ class ExecutionUnit extends Module {
       Logic causeCode,
       Logic trapInterrupt,
     ) {
-      final base = tvec & Const(~0x3, width: mxlen.size);
-      final mode = tvec.slice(1, 0);
+      final base = (tvec & Const(~0x3, width: mxlen.size)).named('trapBase');
+      final mode = tvec.slice(1, 0).named('trapMode');
 
-      final isVectored = mode.eq(Const(1, width: 2));
+      final isVectored = mode.eq(Const(1, width: 2)).named('isVectored');
 
-      final vecOffset = (causeCode << 2).zeroExtend(mxlen.size);
+      final vecOffset = (causeCode << 2)
+          .zeroExtend(mxlen.size)
+          .named('tvecOffset');
 
-      return mux(isVectored & trapInterrupt, base + vecOffset, base);
+      return mux(
+        isVectored & trapInterrupt,
+        base + vecOffset,
+        base,
+      ).named('tvecPc');
     }
 
-    List<Conditional> trap(Trap t, [Logic? tval]) {
-      final trapInterrupt = Const(t.interrupt ? 1 : 0);
-      final causeCode = Const(t.mcauseCode, width: 6);
-
+    List<Conditional> rawTrap(
+      Logic trapInterrupt,
+      Logic causeCode, [
+      Logic? tval,
+    ]) {
       if (csrRead == null || csrWrite == null) {
         return [
           trapCause < encodeCause(trapInterrupt, causeCode).slice(5, 0),
@@ -304,53 +313,41 @@ class ExecutionUnit extends Module {
         ];
       }
 
-      final mideleg = Logic(width: mxlen.size);
-      final medeleg = Logic(width: mxlen.size);
-      final mtvec = Logic(width: mxlen.size);
-      final stvec = Logic(width: mxlen.size);
-      final tvec = Logic(width: mxlen.size);
+      final tvec = Logic(name: 'tvec', width: mxlen.size);
 
       final newMode = selectTrapTargetMode(
         trapInterrupt,
         causeCode,
         currentMode,
-        mideleg,
-        medeleg,
+        mideleg!,
+        medeleg!,
       );
 
       return [
-        csrRead!.en < 1,
-        csrRead!.addr < CsrAddress.mideleg.address,
-        mideleg < csrRead!.data,
-
-        csrRead!.en < 1,
-        csrRead!.addr < CsrAddress.medeleg.address,
-        medeleg < csrRead!.data,
-
-        csrRead!.en < 1,
-        csrRead!.addr < CsrAddress.mtvec.address,
-        mtvec < csrRead!.data,
-
-        csrRead!.en < 1,
-        csrRead!.addr < CsrAddress.stvec.address,
-        stvec < csrRead!.data,
-
         nextMode < newMode,
         trapCause < encodeCause(trapInterrupt, causeCode).slice(5, 0),
         trapTval < (tval ?? Const(0, width: mxlen.size)),
 
         tvec <
-            mux(
-              newMode.eq(Const(PrivilegeMode.machine.id, width: 3)),
-              mtvec,
-              stvec,
-            ),
+            ((stvec != null)
+                ? mux(
+                    newMode.eq(Const(PrivilegeMode.machine.id, width: 3)),
+                    mtvec!,
+                    stvec!,
+                  )
+                : mtvec!),
 
         nextPc < computeTrapVectorPc(tvec, causeCode, trapInterrupt),
 
         output('trap') < 1,
         done < 1,
       ];
+    }
+
+    List<Conditional> trap(Trap t, [Logic? tval]) {
+      final trapInterrupt = Const(t.interrupt ? 1 : 0);
+      final causeCode = Const(t.mcauseCode, width: 6);
+      return rawTrap(trapInterrupt, causeCode, tval);
     }
 
     Sequential(clk, [
@@ -372,7 +369,14 @@ class ExecutionUnit extends Module {
           memWrite.en < 0,
           memWrite.addr < 0,
           memWrite.data < 0,
+          if (csrRead != null) ...[csrRead.en < 0, csrRead.addr < 0],
+          if (csrWrite != null) ...[
+            csrWrite.en < 0,
+            csrWrite.addr < 0,
+            csrWrite.data < 0,
+          ],
           fence < 0,
+          interruptHold < 0,
           nextPc < currentPc,
           nextSp < currentSp,
         ],
@@ -390,17 +394,27 @@ class ExecutionUnit extends Module {
                     final i = steps.length + 1;
 
                     if (mop is ReadRegisterMicroOp) {
+                      final addr =
+                          (readField(mop.source) +
+                                  Const(mop.offset, width: mxlen.size))
+                              .slice(4, 0);
                       final port = mop.source == MicroOpSource.rs2
                           ? rs2Read
                           : rs1Read;
                       steps.add(
                         CaseItem(Const(i, width: maxLen.bitLength), [
-                          port.addr <
-                              (readField(mop.source) +
-                                      Const(mop.offset, width: mxlen.size))
-                                  .slice(4, 0),
-                          port.en < 1,
-                          mopStep < mopStep + 1,
+                          If(
+                            addr.eq(Const(Register.x2.value, width: 5)),
+                            then: [
+                              writeField(mop.source, currentSp),
+                              mopStep < mopStep + 2,
+                            ],
+                            orElse: [
+                              port.addr < addr,
+                              port.en < 1,
+                              mopStep < mopStep + 1,
+                            ],
+                          ),
                         ]),
                       );
 
@@ -420,12 +434,18 @@ class ExecutionUnit extends Module {
                                   Const(mop.offset, width: mxlen.size))
                               .slice(4, 0);
 
+                      final value =
+                          (readSource(mop.source) +
+                          Const(mop.valueOffset, width: mxlen.size));
+
                       steps.add(
                         CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            addr.eq(Const(Register.x2.value, width: 5)),
+                            then: [nextSp < value],
+                          ),
                           rdWrite.addr < addr,
-                          rdWrite.data <
-                              (readSource(mop.source) +
-                                  Const(mop.valueOffset, width: mxlen.size)),
+                          rdWrite.data < value,
                           rdWrite.en < addr.gt(0),
                           mopStep < mopStep + 1,
                         ]),
@@ -583,23 +603,68 @@ class ExecutionUnit extends Module {
                         ]),
                       );
                     } else if (mop is TrapMicroOp) {
+                      final kindMachine = mop.kindMachine;
+                      final kindSupervisor = mop.kindSupervisor ?? kindMachine;
+                      final kindUser = mop.kindUser ?? kindSupervisor;
+
+                      Logic computeKind(
+                        PrivilegeMode expectedMode,
+                        Logic a,
+                        Logic b, [
+                        Logic? fallback,
+                      ]) {
+                        final value = a == b
+                            ? a
+                            : mux(
+                                currentMode.eq(
+                                  Const(expectedMode.id, width: 3),
+                                ),
+                                a,
+                                b,
+                              );
+                        return switch (expectedMode) {
+                          PrivilegeMode.machine => value,
+                          PrivilegeMode.supervisor =>
+                            hasSupervisor ? value : (fallback ?? b),
+                          PrivilegeMode.user =>
+                            hasUser ? value : (fallback ?? b),
+                        };
+                      }
+
                       steps.add(
-                        CaseItem(Const(i, width: maxLen.bitLength), [
-                          Case(currentMode, [
-                            CaseItem(
-                              Const(PrivilegeMode.machine.id, width: 3),
-                              trap(mop.kindMachine),
+                        CaseItem(
+                          Const(i, width: maxLen.bitLength),
+                          rawTrap(
+                            computeKind(
+                              PrivilegeMode.machine,
+                              Const(kindMachine.interrupt),
+                              computeKind(
+                                PrivilegeMode.supervisor,
+                                Const(kindSupervisor.interrupt),
+                                computeKind(
+                                  PrivilegeMode.user,
+                                  Const(kindUser.interrupt),
+                                  Const(kindMachine.interrupt),
+                                ),
+                                Const(kindMachine.interrupt),
+                              ),
                             ),
-                            CaseItem(
-                              Const(PrivilegeMode.supervisor.id, width: 3),
-                              trap(mop.kindSupervisor ?? mop.kindMachine),
+                            computeKind(
+                              PrivilegeMode.machine,
+                              Const(kindMachine.mcauseCode, width: 6),
+                              computeKind(
+                                PrivilegeMode.supervisor,
+                                Const(kindSupervisor.mcauseCode, width: 6),
+                                computeKind(
+                                  PrivilegeMode.user,
+                                  Const(kindUser.mcauseCode, width: 6),
+                                  Const(kindMachine.mcauseCode, width: 6),
+                                ),
+                                Const(kindMachine.mcauseCode, width: 6),
+                              ),
                             ),
-                            CaseItem(
-                              Const(PrivilegeMode.user.id, width: 3),
-                              trap(mop.kindUser ?? mop.kindMachine),
-                            ),
-                          ]),
-                        ]),
+                          ),
+                        ),
                       );
                     } else if (mop is BranchIfMicroOp) {
                       final target = readSource(mop.target);
@@ -664,6 +729,110 @@ class ExecutionUnit extends Module {
                           mopStep < mopStep + 1,
                         ]),
                       );
+                    } else if (mop is ValidateFieldMicroOp) {
+                      final field = readField(mop.field);
+                      final value = Const(mop.value, width: mxlen.size);
+
+                      final condition = switch (mop.condition) {
+                        MicroOpCondition.eq => field.eq(value),
+                        MicroOpCondition.ne => field.neq(value),
+                        MicroOpCondition.lt => field.lt(value),
+                        MicroOpCondition.gt => field.gt(value),
+                        MicroOpCondition.ge => field.gte(value),
+                        MicroOpCondition.le => field.lte(value),
+                        _ => throw 'Invalid condition: ${mop.condition}',
+                      };
+
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            condition,
+                            then: [mopStep < mopStep + 1],
+                            orElse: trap(Trap.illegal),
+                          ),
+                        ]),
+                      );
+                    } else if (mop is ModifyLatchMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          if (mop.replace)
+                            writeField(mop.field, readSource(mop.source))
+                          else
+                            clearField(mop.field),
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is SetFieldMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          writeField(
+                            mop.field,
+                            Const(mop.value, width: mxlen.size),
+                          ),
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is InterruptHoldMicroOp) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          interruptHold < 1,
+                          mopStep < mopStep + 1,
+                        ]),
+                      );
+                    } else if (mop is ReadCsrMicroOp && csrRead != null) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            currentMode.eq(
+                              Const(PrivilegeMode.user.id, width: 3),
+                            ),
+                            then: trap(Trap.illegal),
+                            orElse: [
+                              csrRead.en < 1,
+                              csrRead.addr < readField(mop.source).slice(11, 0),
+                              If(
+                                csrRead.done & csrRead.valid,
+                                then: [
+                                  writeField(mop.source, csrRead.data),
+                                  mopStep < mopStep + 1,
+                                ],
+                              ),
+                              If(
+                                csrRead.done & ~csrRead.valid,
+                                then: trap(Trap.illegal),
+                              ),
+                            ],
+                          ),
+                        ]),
+                      );
+                    } else if (mop is WriteCsrMicroOp && csrWrite != null) {
+                      steps.add(
+                        CaseItem(Const(i, width: maxLen.bitLength), [
+                          If(
+                            currentMode.eq(
+                              Const(PrivilegeMode.user.id, width: 3),
+                            ),
+                            then: trap(Trap.illegal),
+                            orElse: [
+                              csrWrite.en < 1,
+                              csrWrite.addr < readField(mop.field).slice(11, 0),
+                              csrWrite.data < readSource(mop.source),
+                              If(
+                                csrWrite.done & csrWrite.valid,
+                                then: [mopStep < mopStep + 1],
+                              ),
+                              If(
+                                csrWrite.done & ~csrWrite.valid,
+                                then: trap(Trap.illegal),
+                              ),
+                            ],
+                          ),
+                        ]),
+                      );
+                    } else if (mop is TlbFenceMicroOp) {
+                      // TODO: once MMU has a TLB
+                    } else if (mop is TlbInvalidateMicroOp) {
+                      // TODO: once MMU has a TLB
                     } else {
                       print(mop);
                     }
@@ -709,7 +878,14 @@ class ExecutionUnit extends Module {
               memWrite.en < 0,
               memWrite.addr < 0,
               memWrite.data < 0,
+              if (csrRead != null) ...[csrRead.en < 0, csrRead.addr < 0],
+              if (csrWrite != null) ...[
+                csrWrite.en < 0,
+                csrWrite.addr < 0,
+                csrWrite.data < 0,
+              ],
               fence < 0,
+              interruptHold < 0,
             ],
           ),
         ],

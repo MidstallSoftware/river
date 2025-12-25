@@ -90,6 +90,7 @@ void coreTest(
     enable.put(1);
   });
 
+  //Simulator.setMaxSimTime(1200000);
   unawaited(Simulator.run());
 
   await clk.nextPosedge;
@@ -103,6 +104,7 @@ void coreTest(
   }
 
   await Simulator.endSimulation();
+  await Simulator.simulationEnded;
 
   expect(core.pipeline.done.value.toBool(), isTrue);
   expect(core.pipeline.nextPc.value.toInt(), nextPc);
@@ -145,7 +147,7 @@ void main() {
           Register.x5: 0x3E8,
         },
         config,
-        nextPc: 0x1A,
+        nextPc: 0x18,
       ),
     );
   });

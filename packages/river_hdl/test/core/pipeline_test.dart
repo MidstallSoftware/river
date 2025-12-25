@@ -21,17 +21,28 @@ Future<void> pipelineTest(
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
   final enable = Logic();
+  final mode = Const(PrivilegeMode.machine.id, width: 3);
 
-  final csrRead = DataPortInterface(32, 32);
-  final csrWrite = DataPortInterface(32, 32);
+  final csrRead = DataPortInterface(mxlen.size, 12);
+  final csrWrite = DataPortInterface(mxlen.size, 12);
 
-  final memFetchRead = DataPortInterface(32, 32);
-  final memExecRead = DataPortInterface(32, 32);
-  final memWrite = DataPortInterface(39, 32);
+  final csrs = RiscVCsrFile(
+    clk,
+    reset,
+    mode,
+    mxlen: mxlen,
+    misa: mxlen.misa,
+    csrRead: csrRead,
+    csrWrite: csrWrite,
+  );
 
-  final rs1Read = DataPortInterface(32, 5);
-  final rs2Read = DataPortInterface(32, 5);
-  final rdWrite = DataPortInterface(32, 5);
+  final memFetchRead = DataPortInterface(mxlen.size, mxlen.size);
+  final memExecRead = DataPortInterface(mxlen.size, mxlen.size);
+  final memWrite = DataPortInterface(mxlen.size + 7, mxlen.size);
+
+  final rs1Read = DataPortInterface(mxlen.size, 5);
+  final rs2Read = DataPortInterface(mxlen.size, 5);
+  final rdWrite = DataPortInterface(mxlen.size, 5);
 
   final mem = MemoryModel(
     clk,
@@ -62,7 +73,7 @@ Future<void> pipelineTest(
     enable,
     Const(0, width: mxlen.size),
     Const(0, width: mxlen.size),
-    Const(PrivilegeMode.machine.id, width: 3),
+    mode,
     csrRead,
     csrWrite,
     memFetchRead,
@@ -73,6 +84,10 @@ Future<void> pipelineTest(
     rdWrite,
     microcode: microcode,
     mxlen: mxlen,
+    mideleg: csrs.mideleg,
+    medeleg: csrs.medeleg,
+    mtvec: csrs.mtvec,
+    stvec: csrs.stvec,
   );
 
   await pipeline.build();
