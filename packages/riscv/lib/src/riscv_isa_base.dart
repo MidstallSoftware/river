@@ -69,31 +69,74 @@ enum PagingMode {
     0,
     levels: 0,
     vpnBits: 0,
+    pteBytes: 0,
+    ppnBits: const [],
     supportedMxlens: [Mxlen.mxlen_32, Mxlen.mxlen_64],
   ),
   sv32(
     1,
     levels: 2,
     vpnBits: 10,
+    pteBytes: 4,
+    ppnBits: const [10, 12],
     supportedMxlens: [Mxlen.mxlen_32, Mxlen.mxlen_64],
   ),
-  sv39(8, levels: 3, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]),
-  sv48(9, levels: 4, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]),
-  sv57(10, levels: 5, vpnBits: 9, supportedMxlens: [Mxlen.mxlen_64]);
+  sv39(
+    8,
+    levels: 3,
+    vpnBits: 9,
+    pteBytes: 8,
+    ppnBits: const [9, 9, 26],
+    supportedMxlens: [Mxlen.mxlen_64],
+  ),
+  sv48(
+    9,
+    levels: 4,
+    vpnBits: 9,
+    pteBytes: 8,
+    ppnBits: const [9, 9, 9, 17],
+    supportedMxlens: [Mxlen.mxlen_64],
+  ),
+  sv57(
+    10,
+    levels: 5,
+    vpnBits: 9,
+    pteBytes: 8,
+    ppnBits: const [9, 9, 9, 9, 8],
+    supportedMxlens: [Mxlen.mxlen_64],
+  );
 
   const PagingMode(
     this.id, {
     required this.levels,
     required this.vpnBits,
+    required this.pteBytes,
+    required this.ppnBits,
     required this.supportedMxlens,
   });
 
   final int id;
   final int levels;
   final int vpnBits;
-  final List supportedMxlens;
+  final int pteBytes;
+  final List<int> ppnBits;
+  final List<Mxlen> supportedMxlens;
+
+  int get totalPpnBits => ppnBits.fold<int>(0, (a, b) => a + b);
 
   bool isSupported(Mxlen mxlen) => supportedMxlens.contains(mxlen);
+
+  int ppnPhysShift(int i) => 12 + (vpnBits * i);
+
+  int ppnShift(int index) {
+    int shift = 12;
+    for (int i = 0; i < index; i++) {
+      shift += ppnBits[i];
+    }
+    return shift;
+  }
+
+  bool isSuperpageLevel(int level) => level < levels - 1;
 
   static PagingMode? fromId(int id) {
     for (final mode in PagingMode.values) {

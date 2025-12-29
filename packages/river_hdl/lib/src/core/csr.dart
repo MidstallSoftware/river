@@ -56,6 +56,9 @@ class RiscVCsrFile extends Module {
 
   final bool hasSupervisor;
   final bool hasUser;
+  final bool hasPaging;
+  final bool hasMxr;
+  final bool hasSum;
 
   late final Logic clk;
   late final Logic reset;
@@ -88,6 +91,9 @@ class RiscVCsrFile extends Module {
     Logic? externalPending,
     this.hasSupervisor = false,
     this.hasUser = false,
+    this.hasPaging = false,
+    this.hasMxr = false,
+    this.hasSum = false,
     required DataPortInterface csrRead,
     required DataPortInterface csrWrite,
     super.name = 'riscv_csr_file',

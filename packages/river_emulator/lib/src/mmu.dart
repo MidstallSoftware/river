@@ -80,6 +80,26 @@ class MmuEmulator {
     var a = pageTable;
     var i = levels - 1;
 
+    int buildPhys(int pte, int level) {
+      int phys = addr & 0xfff;
+
+      for (int i = 0; i < mode.ppnBits.length; i++) {
+        final bits = mode.ppnBits[i];
+        final mask = (1 << bits) - 1;
+
+        int value;
+        if (i < level) {
+          value = (addr >> (12 + mode.vpnBits * i)) & mask;
+        } else {
+          value = (pte >> mode.ppnShift(i)) & mask;
+        }
+
+        phys |= value << mode.ppnPhysShift(i);
+      }
+
+      return phys;
+    }
+
     while (true) {
       final pte = await read(
         a + vpn[i] * config.mxlen.width,
@@ -143,13 +163,7 @@ class MmuEmulator {
           );
         }
 
-        final ppn0 = (pte >> 10) & 0x1ff;
-        final ppn1 = (pte >> 19) & 0x1ff;
-        final ppn2 = (pte >> 28) & 0x3ff_ffff;
-
-        final offset = addr & 0xfff;
-        final phys = (ppn2 << 30) | (ppn1 << 21) | (ppn0 << 12) | offset;
-        return phys;
+        return buildPhys(pte, i);
       }
 
       i -= 1;

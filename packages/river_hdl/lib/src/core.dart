@@ -6,8 +6,11 @@ import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
 
 import 'core/csr.dart';
-import 'core/pipeline.dart';
 import 'core/int.dart';
+import 'core/mmu.dart';
+import 'core/pipeline.dart';
+
+import 'memory/port.dart';
 
 class RiverCoreHDL extends Module {
   final RiverCore config;
@@ -19,10 +22,8 @@ class RiverCoreHDL extends Module {
     this.config,
     Logic clk,
     Logic reset,
-    Logic enable,
-    DataPortInterface memFetchRead,
-    DataPortInterface memExecRead,
-    DataPortInterface memWrite, {
+    Logic enable, {
+    Map<MemoryBlock, (DataPortInterface, DataPortInterface)> devices = const {},
     Map<String, Logic> srcIrqs = const {},
     super.name = 'river_core',
   }) {
@@ -30,38 +31,97 @@ class RiverCoreHDL extends Module {
     reset = addInput('reset', reset);
     enable = addInput('enable', enable);
 
-    memFetchRead = memFetchRead.clone()
-      ..connectIO(
-        this,
-        memFetchRead,
-        outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
-        uniquify: (og) => 'memFetchRead_$og',
-      );
-
-    memExecRead = memExecRead.clone()
-      ..connectIO(
-        this,
-        memExecRead,
-        outputTags: {DataPortGroup.control},
-        inputTags: {DataPortGroup.data, DataPortGroup.integrity},
-        uniquify: (og) => 'memExecRead_$og',
-      );
-
-    memWrite = memWrite.clone()
-      ..connectIO(
-        this,
-        memWrite,
-        outputTags: {DataPortGroup.control, DataPortGroup.data},
-        inputTags: {DataPortGroup.integrity},
-        uniquify: (og) => 'memWrite_$og',
-      );
+    devices = Map.fromEntries(
+      devices.entries.indexed.map((e) {
+        final index = e.$1;
+        final mmap = e.$2.key;
+        final devReadPort = e.$2.value.$1;
+        final devWritePort = e.$2.value.$2;
+        return MapEntry(mmap, (
+          devReadPort.clone()..connectIO(
+            this,
+            devReadPort,
+            outputTags: {DataPortGroup.control},
+            inputTags: {DataPortGroup.data, DataPortGroup.integrity},
+            uniquify: (og) => 'devRead${index}_$og',
+          ),
+          devWritePort.clone()..connectIO(
+            this,
+            devWritePort,
+            outputTags: {DataPortGroup.control, DataPortGroup.data},
+            inputTags: {DataPortGroup.integrity},
+            uniquify: (og) => 'devWrite${index}_$og',
+          ),
+        ));
+      }),
+    );
 
     final pipelineEnable = Logic(name: 'pipelineEnable');
     final pc = Logic(name: 'pc', width: config.mxlen.size);
     final sp = Logic(name: 'sp', width: config.mxlen.size);
     final mode = Logic(name: 'mode', width: 3);
     final interruptHold = Logic(name: 'interruptHold');
+    final fence = Logic(name: 'fence');
+
+    final pagingMode = Logic(
+      name: 'pagingMode',
+      width: PagingMode.values
+          .where((m) => m.isSupported(config.mxlen))
+          .map((m) => m.id)
+          .fold((0), (a, b) => a > b ? a : b)
+          .bitLength,
+    );
+
+    final pageTableAddress = Logic(
+      name: 'pageTableAddress',
+      width: config.mxlen.size,
+    );
+
+    final enableMxr = Logic(name: 'enableMxr');
+    final enableSum = Logic(name: 'enableSum');
+
+    final mmuFetchRead = DataPortInterface(
+      config.mxlen.size,
+      config.mxlen.size,
+    );
+    final mmuExecRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
+    final mmuWritebackRead = DataPortInterface(
+      config.mxlen.size,
+      config.mxlen.size,
+    );
+
+    final mmuWrite = DataPortInterface(config.mxlen.size, config.mxlen.size);
+    final sizedMmuWrite = DataPortInterface(
+      config.mxlen.size + 7,
+      config.mxlen.size,
+    );
+
+    SizedWriteSingleDataPort(
+      clk,
+      reset,
+      backingRead: mmuWritebackRead,
+      backingWrite: mmuWrite,
+      source: sizedMmuWrite,
+    );
+
+    MmuHDL(
+      clk,
+      reset,
+      [(MemoryAccess.write, mmuWrite)],
+      [
+        (MemoryAccess.instr, mmuFetchRead),
+        (MemoryAccess.read, mmuExecRead),
+        (MemoryAccess.read, mmuWritebackRead),
+      ],
+      config: config.mmu,
+      privilegeMode: mode,
+      pagingMode: config.mmu.hasPaging ? pagingMode : null,
+      pageTableAddress: config.mmu.hasPaging ? pageTableAddress : null,
+      devices: devices,
+      enableSum: config.mmu.hasSum ? enableSum : null,
+      enableMxr: config.mmu.hasMxr ? enableMxr : null,
+      fence: fence,
+    );
 
     final rs1Read = DataPortInterface(config.mxlen.size, 5);
     final rs2Read = DataPortInterface(config.mxlen.size, 5);
@@ -154,10 +214,19 @@ class RiverCoreHDL extends Module {
             externalPending: externalPending,
             hasSupervisor: config.hasSupervisor,
             hasUser: config.hasUser,
+            hasPaging: config.mmu.hasPaging,
+            hasMxr: config.mmu.hasMxr,
+            hasSum: config.mmu.hasSum,
             csrRead: csrRead,
             csrWrite: csrWrite,
           )
         : null;
+
+    if (csrs != null) {
+      pagingMode <= Const(0, width: pagingMode.width);
+      pageTableAddress <= Const(0, width: config.mxlen.size);
+      // TODO: drive pagingMode, pageTableAddress, mxr, and sum from CSRs
+    }
 
     pipeline = RiverPipeline(
       clk,
@@ -169,9 +238,9 @@ class RiverCoreHDL extends Module {
       config.type.hasCsrs ? csrRead : null,
       config.type.hasCsrs ? csrWrite : null,
       // TODO: have a cache backed memory interface
-      memFetchRead,
-      memExecRead,
-      memWrite,
+      mmuFetchRead,
+      mmuExecRead,
+      sizedMmuWrite,
       rs1Read,
       rs2Read,
       rdWrite,
@@ -194,12 +263,13 @@ class RiverCoreHDL extends Module {
           pc < config.resetVector,
           sp < 0,
           mode < 0,
+          fence < 0,
           interruptHold < 0,
         ],
         orElse: [
           If(
             interruptHold & externalPending,
-            then: [interruptHold < 0, pipelineEnable < 1],
+            then: [interruptHold < 0, pipelineEnable < 1, fence < 0],
           ),
 
           If(
@@ -212,12 +282,13 @@ class RiverCoreHDL extends Module {
                   sp < pipeline.nextSp,
                   mode < pipeline.nextMode,
                   interruptHold < pipeline.interruptHold,
+                  fence < pipeline.fence,
                   pipelineEnable < 0,
                 ],
-                orElse: [pipelineEnable < 1],
+                orElse: [pipelineEnable < 1, fence < 0],
               ),
             ],
-            orElse: [pipelineEnable < 0],
+            orElse: [pipelineEnable < 0, fence < 0],
           ),
         ],
       ),

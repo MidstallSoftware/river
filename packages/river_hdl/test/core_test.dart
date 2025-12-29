@@ -22,26 +22,8 @@ void coreTest(
   final reset = Logic();
   final enable = Logic();
 
-  final memFetchRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
-  final memExecRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
-  final memWrite = DataPortInterface(config.mxlen.size + 7, config.mxlen.size);
-
-  final backingMemRead = DataPortInterface(
-    config.mxlen.size,
-    config.mxlen.size,
-  );
-  final backingMemWrite = DataPortInterface(
-    config.mxlen.size,
-    config.mxlen.size,
-  );
-
-  SizedWriteSingleDataPort(
-    clk,
-    reset,
-    backingRead: backingMemRead,
-    backingWrite: backingMemWrite,
-    source: memWrite,
-  );
+  final memRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
+  final memWrite = DataPortInterface(config.mxlen.size, config.mxlen.size);
 
   final storage = SparseMemoryStorage(
     addrWidth: config.mxlen.size,
@@ -54,8 +36,8 @@ void coreTest(
   final mem = MemoryModel(
     clk,
     reset,
-    [backingMemWrite],
-    [memFetchRead, memExecRead, backingMemRead],
+    [memWrite],
+    [memRead],
     readLatency: latency,
     storage: storage,
   );
@@ -65,9 +47,16 @@ void coreTest(
     clk,
     reset,
     enable,
-    memFetchRead,
-    memExecRead,
-    memWrite,
+    devices: {
+      MemoryBlock(
+        0,
+        0xFFFF,
+        DeviceAccessor('/mem', {}, type: DeviceAccessorType.memory),
+      ): (
+        memRead,
+        memWrite,
+      ),
+    },
   );
 
   await core.build();
@@ -110,10 +99,8 @@ void coreTest(
   expect(core.pipeline.nextPc.value.toInt(), nextPc);
 
   for (final regState in regStates.entries) {
-    expect(
-      core.regs.getData(LogicValue.ofInt(regState.key.value, 5))!.toInt(),
-      regState.value,
-    );
+    final value = core.regs.getData(LogicValue.ofInt(regState.key.value, 5))!;
+    expect(value.toInt(), regState.value, reason: '${regState.key}=$value');
   }
 
   for (final memState in memStates.entries) {
