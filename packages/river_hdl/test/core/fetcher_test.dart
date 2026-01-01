@@ -12,7 +12,6 @@ Future<void> fetcherTest(
   bool isCompressed = false,
   bool hasCompressed = false,
   int latency = 0,
-  int maxSimTime = 800,
 }) async {
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
@@ -46,13 +45,13 @@ Future<void> fetcherTest(
 
   await fetcher.build();
 
-  reset.inject(1);
-  enable.inject(0);
-
   Simulator.registerAction(15, () {
     reset.put(0);
     enable.put(1);
   });
+
+  reset.inject(1);
+  enable.inject(0);
 
   unawaited(Simulator.run());
 
@@ -71,6 +70,7 @@ Future<void> fetcherTest(
   await clk.nextPosedge;
 
   await Simulator.endSimulation();
+  await Simulator.simulationEnded;
 
   expect(fetcher.done.value.toBool(), isTrue);
   expect(fetcher.result.value.toInt(), instr);

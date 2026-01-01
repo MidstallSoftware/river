@@ -119,8 +119,6 @@ Future<void> execTest(
 
   await exec.build();
 
-  WaveDumper(exec);
-
   reset.inject(1);
   enable.inject(0);
 
@@ -168,6 +166,7 @@ Future<void> execTest(
   }
 
   await Simulator.endSimulation();
+  await Simulator.simulationEnded;
 
   expect(exec.done.value.toBool(), isTrue);
   expect(exec.nextPc.value.toInt(), nextPc);

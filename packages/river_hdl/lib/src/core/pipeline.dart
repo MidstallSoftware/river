@@ -21,6 +21,8 @@ class RiverPipeline extends Module {
   Logic get fence => output('fence');
   Logic get interruptHold => output('interruptHold');
 
+  late final FetchUnit fetcher;
+
   RiverPipeline(
     Logic clk,
     Logic reset,
@@ -146,7 +148,7 @@ class RiverPipeline extends Module {
     addOutput('fence');
     addOutput('interruptHold');
 
-    final fetcher = FetchUnit(
+    fetcher = FetchUnit(
       clk,
       reset,
       enable,
@@ -158,16 +160,17 @@ class RiverPipeline extends Module {
     final decoder = InstructionDecoder(
       clk,
       reset,
-      fetcher.done,
+      fetcher.done & fetcher.valid,
       fetcher.result,
       microcode: microcode,
       mxlen: mxlen,
       staticInstructions: staticInstructions,
     );
 
-    final readyExecution = (fetcher.done & decoder.valid & decoder.done).named(
-      'readyExecution',
-    );
+    final readyExecution =
+        (fetcher.valid & fetcher.done & decoder.valid & decoder.done).named(
+          'readyExecution',
+        );
 
     final exec = ExecutionUnit(
       clk,
@@ -213,7 +216,7 @@ class RiverPipeline extends Module {
         ],
         orElse: [
           done < fetcher.done & decoder.done & exec.done,
-          valid < decoder.valid,
+          valid < fetcher.valid & decoder.valid,
           nextSp < exec.nextSp,
           nextPc < exec.nextPc,
           nextMode < exec.nextMode,

@@ -15,11 +15,11 @@ const kCpuConfigs = <String, RiverCore>{
     clock: ClockConfig(name: 'test', baseFreqHz: 10000),
   ),
   // FIXME: this breaks tests in core_tests.dart after adding the MMU */
-  /*'RC1.s': const RiverCoreV1.small(
+  'RC1.s': const RiverCoreV1.small(
     mmu: Mmu(mxlen: Mxlen.mxlen_64, blocks: []),
     interrupts: [],
     clock: ClockConfig(name: 'test', baseFreqHz: 10000),
-  ),*/
+  ),
 };
 
 void cpuTests(

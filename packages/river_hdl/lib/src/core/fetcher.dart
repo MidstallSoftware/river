@@ -5,6 +5,7 @@ class FetchUnit extends Module {
   final bool hasCompressed;
 
   Logic get done => output('done');
+  Logic get valid => output('valid');
   Logic get compressed => output('compressed');
   Logic get result => output('result');
 
@@ -32,12 +33,13 @@ class FetchUnit extends Module {
       );
 
     addOutput('done');
+    addOutput('valid');
     if (hasCompressed) addOutput('compressed');
     addOutput('result', width: 32);
 
     final halfwordMask = Const(0xFFFF, width: 32);
 
-    final fetchAlignBits = switch (pc.width) {
+    final fetchAlignBits = switch (memRead.data.width) {
       32 => 2,
       64 => 3,
       _ => throw 'Unsupported XLEN=${pc.width}',
@@ -45,16 +47,22 @@ class FetchUnit extends Module {
 
     final alignment = Const(~((1 << fetchAlignBits) - 1), width: pc.width);
 
-    final pcFetch = Logic(name: 'pcFetch', width: pc.width);
-    pcFetch <= pc & alignment;
+    final enableRead = Logic(name: 'enableRead');
+    memRead.en <= enableRead;
+
+    final halfSelect = Logic(name: 'halfSelect');
+    final readData = Logic(name: 'readData', width: memRead.data.width);
+
+    final complete = Logic(name: 'complete');
+    final pcLatch = Logic(name: 'pcLatch', width: pc.width);
 
     final instr32 = Logic(name: 'instr32', width: 32);
 
     instr32 <=
-        ((pc.width == 32)
+        ((memRead.data.width == 32)
             ? memRead.data.slice(31, 0)
             : mux(
-                pc[2],
+                halfSelect,
                 memRead.data.slice(63, 32),
                 memRead.data.slice(31, 0),
               ));
@@ -67,50 +75,62 @@ class FetchUnit extends Module {
       If(
         reset,
         then: [
-          memRead.en < 0,
+          pcLatch < 0,
+          enableRead < 0,
           memRead.addr < 0,
           done < 0,
+          valid < 0,
           result < 0,
+          complete < 0,
+          readData < 0,
+          if (memRead.data.width == 64) halfSelect < 0,
           if (hasCompressed) compressed < 0,
         ],
         orElse: [
-          If(
-            enable,
-            then: [
-              memRead.en < 1,
-              memRead.addr < pcFetch,
-
+          done < 0,
+          valid < 0,
+          result < 0,
+          If.block([
+            Iff(enable & ~complete & ~enableRead, [
+              pcLatch < pc,
+              if (memRead.data.width == 64) halfSelect < pc[2],
+              enableRead < 1,
+              memRead.addr < (pc & alignment),
+            ]),
+            Iff(enable & ~complete & ~memRead.done, [
+              enableRead < 1,
+              memRead.addr < (pcLatch & alignment),
+            ]),
+            Iff(enable & ~complete & memRead.done, [
+              enableRead < 1,
+              memRead.addr < (pcLatch & alignment),
               If(
-                memRead.done & memRead.valid,
-                then: [
-                  done < 1,
-                  if (hasCompressed) ...[
-                    compressed < isCompressed,
-                    result <
-                        mux(
-                          isCompressed,
-                          (instr32 & halfwordMask),
-                          instr32,
-                        ).slice(31, 0),
-                  ] else ...[
-                    result < instr32,
-                  ],
-                ],
-                orElse: [
-                  done < 0,
-                  result < 0,
-                  if (hasCompressed) compressed < 0,
-                ],
+                memRead.valid,
+                then: [complete < 1, readData < memRead.data, result < 0],
+                orElse: [done < 1, valid < 0, enableRead < 0],
               ),
-            ],
-            orElse: [
-              memRead.en < 0,
-              memRead.addr < 0,
-              done < 0,
-              result < 0,
+            ]),
+            Iff(enable & complete, [
+              done < 1,
+              valid < 1,
+              enableRead < 1,
+              memRead.addr < (pcLatch & alignment),
+              if (hasCompressed) ...[
+                compressed < isCompressed,
+                result < mux(isCompressed, (instr32 & halfwordMask), instr32),
+              ] else ...[
+                result < instr32,
+              ],
+            ]),
+            Iff(~enable, [
+              complete < 0,
+              pcLatch < pc,
+              if (memRead.data.width == 64) halfSelect < 0,
               if (hasCompressed) compressed < 0,
-            ],
-          ),
+              enableRead < 0,
+              memRead.addr < 0,
+            ]),
+          ]),
         ],
       ),
     ]);

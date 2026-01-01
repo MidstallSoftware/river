@@ -425,7 +425,10 @@ class ExecutionUnit extends Module {
                             port.data +
                                 Const(mop.valueOffset, width: mxlen.size),
                           ),
-                          mopStep < mopStep + 1,
+                          If(
+                            port.done & port.valid,
+                            then: [mopStep < mopStep + 1],
+                          ),
                         ]),
                       );
                     } else if (mop is WriteRegisterMicroOp) {

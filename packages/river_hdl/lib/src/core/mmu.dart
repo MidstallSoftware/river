@@ -446,18 +446,18 @@ class MmuHDL extends Module {
       ]);
     }
 
-    List<Conditional> defineReadPort(
+    List<Iff> defineReadPort(
       MemoryAccess access,
       DataPortInterface readPort,
       int id,
     ) => [
       if (config.hasPaging)
-        If(
+        Iff(
           readPort.en &
               ~devReadBusy &
               devReadClaim.eq(0) &
               needsPageTranslation,
-          then: [
+          [
             ptwEnable < 1,
             ptwVaddr < readPort.addr,
             ptwAccess <
@@ -485,9 +485,9 @@ class MmuHDL extends Module {
             ),
           ],
         ),
-      If(
+      Iff(
         readPort.en & ~devReadBusy & devReadClaim.eq(0) & ~needsPageTranslation,
-        then: [
+        [
           devReadEnable < 1,
           devReadBusy < 1,
           devReadClaim < id,
@@ -497,32 +497,38 @@ class MmuHDL extends Module {
           readPort.data < 0,
         ],
       ),
-      If(
-        devReadBusy & devReadClaim.eq(id),
-        then: [
-          readPort.done < devReadDone,
-          readPort.valid < devReadValid,
-          readPort.data < devReadData,
-          If(
-            devReadDone & ~readPort.en,
-            then: [devReadBusy < 0, devReadClaim < 0, devReadEnable < 0],
-          ),
-        ],
-      ),
+      Iff(readPort.en & devReadBusy & devReadClaim.eq(id) & devReadDone, [
+        readPort.done < devReadDone,
+        readPort.valid < devReadValid,
+        readPort.data < devReadData,
+      ]),
+      Iff(devReadBusy & devReadClaim.eq(id) & (~readPort.en | devReadDone), [
+        readPort.done < 0,
+        readPort.valid < 0,
+        readPort.data < 0,
+        devReadBusy < 0,
+        devReadClaim < 0,
+        devReadEnable < 0,
+      ]),
+      ElseIf(devReadBusy & devReadClaim.eq(id), [
+        readPort.done < 0,
+        readPort.valid < 0,
+        readPort.data < 0,
+      ]),
     ];
 
-    List<Conditional> defineWritePort(
+    List<Iff> defineWritePort(
       MemoryAccess access,
       DataPortInterface writePort,
       int id,
     ) => [
       if (config.hasPaging)
-        If(
+        Iff(
           writePort.en &
               ~devWriteBusy &
               devWriteClaim.eq(0) &
               needsPageTranslation,
-          then: [
+          [
             ptwEnable < 1,
             ptwAccess <
                 switch (access) {
@@ -547,12 +553,12 @@ class MmuHDL extends Module {
             ),
           ],
         ),
-      If(
+      Iff(
         writePort.en &
             ~devWriteBusy &
             devWriteClaim.eq(0) &
             ~needsPageTranslation,
-        then: [
+        [
           devWriteEnable < 1,
           devWriteBusy < 1,
           devWriteClaim < id,
@@ -560,17 +566,14 @@ class MmuHDL extends Module {
           devWriteData < writePort.data,
         ],
       ),
-      If(
-        devWriteBusy & devWriteClaim.eq(id),
-        then: [
-          writePort.done < devWriteDone,
-          writePort.valid < devWriteValid,
-          If(
-            devWriteDone & ~writePort.en,
-            then: [devWriteBusy < 0, devWriteClaim < 0, devWriteEnable < 0],
-          ),
-        ],
-      ),
+      Iff(devWriteBusy & devWriteClaim.eq(id), [
+        writePort.done < devWriteDone,
+        writePort.valid < devWriteValid,
+        If(
+          devWriteDone & ~writePort.en,
+          then: [devWriteBusy < 0, devWriteClaim < 0, devWriteEnable < 0],
+        ),
+      ]),
     ];
 
     Sequential(clk, [
@@ -605,18 +608,25 @@ class MmuHDL extends Module {
         ],
         orElse: [
           ...pagingCycle,
-          for (final memReadPort in memReadPorts.indexed)
-            ...defineReadPort(
-              memReadPort.$2.$1,
-              memReadPort.$2.$2,
-              memReadPort.$1 + 2,
-            ),
-          for (final memWritePort in memWritePorts.indexed)
-            ...defineWritePort(
-              memWritePort.$2.$1,
-              memWritePort.$2.$2,
-              memWritePort.$1 + 2,
-            ),
+          for (final memPort in [
+            ...memReadPorts,
+            ...memWritePorts,
+          ].map((e) => e.$2))
+            If(~memPort.en, then: [memPort.done < 0, memPort.valid < 0]),
+          If.block([
+            for (final memReadPort in memReadPorts.indexed)
+              ...defineReadPort(
+                memReadPort.$2.$1,
+                memReadPort.$2.$2,
+                memReadPort.$1 + 2,
+              ),
+            for (final memWritePort in memWritePorts.indexed)
+              ...defineWritePort(
+                memWritePort.$2.$1,
+                memWritePort.$2.$2,
+                memWritePort.$1 + 2,
+              ),
+          ]),
           If(
             devReadEnable,
             then: [
@@ -639,7 +649,8 @@ class MmuHDL extends Module {
                                       width: config.mxlen.size,
                                     ))
                                 .slice(dev.value.$1.addr.width - 1, 0),
-                        devReadData < dev.value.$1.data,
+                        devReadData <
+                            dev.value.$1.data.zeroExtend(config.mxlen.size),
                         devReadDone < dev.value.$1.done,
                         devReadValid < dev.value.$1.valid,
                       ],
@@ -670,7 +681,8 @@ class MmuHDL extends Module {
                                       width: config.mxlen.size,
                                     ))
                                 .slice(dev.value.$2.addr.width - 1, 0),
-                        dev.value.$2.data < devWriteData,
+                        dev.value.$2.data <
+                            devWriteData.slice(dev.value.$2.data.width - 1, 0),
                         devWriteDone < dev.value.$2.done,
                         devWriteValid < dev.value.$2.valid,
                         If(dev.value.$2.done, then: [dev.value.$2.en < 0]),
