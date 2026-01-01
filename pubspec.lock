@@ -245,10 +245,18 @@ packages:
     dependency: transitive
     description:
       name: rohd
-      sha256: "54a95316f65262d61768fd93bf005714f6ce65d52cb7c0e62be962e21f7bd932"
+      sha256: "7ce36e8d39bda546009d5b76455c848c6971296d43cdbf2a81654d908c7a2bf2"
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.6"
+    version: "0.6.7"
+  rohd_bridge:
+    dependency: transitive
+    description:
+      name: rohd_bridge
+      sha256: c43a9cd6eb7ea26b71cf96abb8878b6744ea2f8a37a1ef005b8e088c488c5cc5
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
   rohd_hcl:
     dependency: transitive
     description:

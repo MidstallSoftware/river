@@ -3,10 +3,10 @@ import 'package:river/river.dart';
 import 'package:rohd/rohd.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
 
-class MmuHDL extends Module {
+class MmuModule extends Module {
   final Mmu config;
 
-  MmuHDL(
+  MmuModule(
     Logic clk,
     Logic reset,
     List<(MemoryAccess, DataPortInterface)> memWritePorts,
@@ -18,7 +18,8 @@ class MmuHDL extends Module {
     Logic? pagingMode,
     Logic? pageTableAddress,
     Logic? fence,
-    Map<MemoryBlock, (DataPortInterface, DataPortInterface)> devices = const {},
+    Map<MemoryBlock, (DataPortInterface?, DataPortInterface?)> devices =
+        const {},
     super.name = 'river_mmu',
   }) {
     clk = addInput('clk', clk);
@@ -61,20 +62,24 @@ class MmuHDL extends Module {
         final devReadPort = e.$2.value.$1;
         final devWritePort = e.$2.value.$2;
         return MapEntry(mmap, (
-          devReadPort.clone()..connectIO(
-            this,
-            devReadPort,
-            outputTags: {DataPortGroup.control},
-            inputTags: {DataPortGroup.data, DataPortGroup.integrity},
-            uniquify: (og) => 'devRead${index}_$og',
-          ),
-          devWritePort.clone()..connectIO(
-            this,
-            devWritePort,
-            outputTags: {DataPortGroup.control, DataPortGroup.data},
-            inputTags: {DataPortGroup.integrity},
-            uniquify: (og) => 'devWrite${index}_$og',
-          ),
+          devReadPort != null
+              ? (devReadPort!.clone()..connectIO(
+                  this,
+                  devReadPort!,
+                  outputTags: {DataPortGroup.control},
+                  inputTags: {DataPortGroup.data, DataPortGroup.integrity},
+                  uniquify: (og) => 'devRead${index}_$og',
+                ))
+              : null,
+          devWritePort != null
+              ? (devWritePort!.clone()..connectIO(
+                  this,
+                  devWritePort!,
+                  outputTags: {DataPortGroup.control, DataPortGroup.data},
+                  inputTags: {DataPortGroup.integrity},
+                  uniquify: (og) => 'devWrite${index}_$og',
+                ))
+              : null,
         ));
       }),
     );
@@ -590,10 +595,8 @@ class MmuHDL extends Module {
             memWritePort.$2.valid < 0,
           ],
           for (final dev in devices.values) ...[
-            dev.$1.en < 0,
-            dev.$1.addr < 0,
-            dev.$2.en < 0,
-            dev.$2.addr < 0,
+            if (dev.$1 != null) ...[dev.$1!.en < 0, dev.$1!.addr < 0],
+            if (dev.$2 != null) ...[dev.$2!.en < 0, dev.$2!.addr < 0],
           ],
           devReadBusy < 0,
           devReadEnable < 0,
@@ -640,20 +643,28 @@ class MmuHDL extends Module {
                     Iff(
                       devReadAddr.gte(dev.key.start) &
                           devReadAddr.lt(dev.key.end),
-                      [
-                        dev.value.$1.en < devReadBusy,
-                        dev.value.$1.addr <
-                            (devReadAddr -
-                                    Const(
-                                      dev.key.start,
-                                      width: config.mxlen.size,
-                                    ))
-                                .slice(dev.value.$1.addr.width - 1, 0),
-                        devReadData <
-                            dev.value.$1.data.zeroExtend(config.mxlen.size),
-                        devReadDone < dev.value.$1.done,
-                        devReadValid < dev.value.$1.valid,
-                      ],
+                      dev.value.$1 != null
+                          ? [
+                              dev.value.$1!.en < devReadBusy,
+                              dev.value.$1!.addr <
+                                  (devReadAddr -
+                                          Const(
+                                            dev.key.start,
+                                            width: config.mxlen.size,
+                                          ))
+                                      .slice(dev.value.$1!.addr.width - 1, 0),
+                              devReadData <
+                                  dev.value.$1!.data.zeroExtend(
+                                    config.mxlen.size,
+                                  ),
+                              devReadDone < dev.value.$1!.done,
+                              devReadValid < dev.value.$1!.valid,
+                            ]
+                          : [
+                              devReadData < 0,
+                              devReadDone < 1,
+                              devReadValid < 0,
+                            ],
                     ),
                   Else([devReadDone < 1, devReadData < 0, devReadValid < 0]),
                 ]),
@@ -672,21 +683,29 @@ class MmuHDL extends Module {
                     Iff(
                       devWriteAddr.gte(dev.key.start) &
                           devWriteAddr.lt(dev.key.end),
-                      [
-                        dev.value.$2.en < devWriteBusy,
-                        dev.value.$2.addr <
-                            (devWriteAddr -
-                                    Const(
-                                      dev.key.start,
-                                      width: config.mxlen.size,
-                                    ))
-                                .slice(dev.value.$2.addr.width - 1, 0),
-                        dev.value.$2.data <
-                            devWriteData.slice(dev.value.$2.data.width - 1, 0),
-                        devWriteDone < dev.value.$2.done,
-                        devWriteValid < dev.value.$2.valid,
-                        If(dev.value.$2.done, then: [dev.value.$2.en < 0]),
-                      ],
+                      dev.value.$2 != null
+                          ? [
+                              dev.value.$2!.en < devWriteBusy,
+                              dev.value.$2!.addr <
+                                  (devWriteAddr -
+                                          Const(
+                                            dev.key.start,
+                                            width: config.mxlen.size,
+                                          ))
+                                      .slice(dev.value.$2!.addr.width - 1, 0),
+                              dev.value.$2!.data <
+                                  devWriteData.slice(
+                                    dev.value.$2!.data.width - 1,
+                                    0,
+                                  ),
+                              devWriteDone < dev.value.$2!.done,
+                              devWriteValid < dev.value.$2!.valid,
+                              If(
+                                dev.value.$2!.done,
+                                then: [dev.value.$2!.en < 0],
+                              ),
+                            ]
+                          : [devWriteDone < 1, devWriteValid < 0],
                     ),
                   Else([devWriteDone < 1, devWriteValid < 0]),
                 ]),

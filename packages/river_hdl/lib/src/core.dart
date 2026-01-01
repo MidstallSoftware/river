@@ -1,6 +1,7 @@
 import 'dart:math' show max;
 
 import 'package:rohd/rohd.dart';
+import 'package:rohd_bridge/rohd_bridge.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
@@ -12,47 +13,63 @@ import 'core/pipeline.dart';
 
 import 'memory/port.dart';
 
-class RiverCoreHDL extends Module {
+import 'dev.dart';
+
+class RiverCoreIP extends BridgeModule {
   final RiverCore config;
 
   late final RegisterFile regs;
   late final RiverPipeline pipeline;
 
-  RiverCoreHDL(
-    this.config,
-    Logic clk,
-    Logic reset,
-    Logic enable, {
-    Map<MemoryBlock, (DataPortInterface, DataPortInterface)> devices = const {},
+  RiverCoreIP(
+    this.config, {
     Map<String, Logic> srcIrqs = const {},
     super.name = 'river_core',
-  }) {
-    clk = addInput('clk', clk);
-    reset = addInput('reset', reset);
-    enable = addInput('enable', enable);
+  }) : super('RiverCore') {
+    createPort('clk', PortDirection.input);
+    createPort('reset', PortDirection.input);
 
-    devices = Map.fromEntries(
-      devices.entries.indexed.map((e) {
+    final clk = input('clk');
+    final reset = input('reset');
+
+    final devices = Map.fromEntries(
+      config.mmu.blocks.indexed.map((e) {
         final index = e.$1;
-        final mmap = e.$2.key;
-        final devReadPort = e.$2.value.$1;
-        final devWritePort = e.$2.value.$2;
-        return MapEntry(mmap, (
-          devReadPort.clone()..connectIO(
-            this,
-            devReadPort,
-            outputTags: {DataPortGroup.control},
-            inputTags: {DataPortGroup.data, DataPortGroup.integrity},
-            uniquify: (og) => 'devRead${index}_$og',
-          ),
-          devWritePort.clone()..connectIO(
-            this,
-            devWritePort,
-            outputTags: {DataPortGroup.control, DataPortGroup.data},
-            inputTags: {DataPortGroup.integrity},
-            uniquify: (og) => 'devWrite${index}_$og',
-          ),
-        ));
+        final mmap = e.$2;
+
+        final mmioRead = addInterface(
+          MmioReadInterface(config.mxlen.size, mmap.size.bitLength),
+          name: 'mmioRead$index',
+          role: PairRole.consumer,
+        );
+        final mmioWrite = addInterface(
+          MmioWriteInterface(config.mxlen.size, mmap.size.bitLength),
+          name: 'mmioWrite$index',
+          role: PairRole.provider,
+        );
+
+        final devRead = DataPortInterface(
+          config.mxlen.size,
+          mmap.size.bitLength,
+        );
+        final devWrite = DataPortInterface(
+          config.mxlen.size,
+          mmap.size.bitLength,
+        );
+
+        mmioRead.internalInterface!.en <= devRead.en;
+        mmioRead.internalInterface!.addr <= devRead.addr;
+        devRead.data <= mmioRead.internalInterface!.data;
+        devRead.done <= mmioRead.internalInterface!.done;
+        devRead.valid <= mmioRead.internalInterface!.valid;
+
+        mmioWrite.internalInterface!.en <= devWrite.en;
+        mmioWrite.internalInterface!.addr <= devWrite.addr;
+        mmioWrite.internalInterface!.data <= devWrite.data;
+        devWrite.done <= mmioWrite.internalInterface!.done;
+        devWrite.valid <= mmioWrite.internalInterface!.valid;
+
+        return MapEntry(mmap, (devRead, devWrite));
       }),
     );
 
@@ -104,7 +121,7 @@ class RiverCoreHDL extends Module {
       source: sizedMmuWrite,
     );
 
-    MmuHDL(
+    MmuModule(
       clk,
       reset,
       [(MemoryAccess.write, mmuWrite)],
@@ -273,7 +290,7 @@ class RiverCoreHDL extends Module {
           ),
 
           If(
-            enable & ~interruptHold,
+            ~interruptHold,
             then: [
               If(
                 pipeline.done,

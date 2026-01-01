@@ -189,6 +189,26 @@ class RiverCore {
       ' mmu: $mmu, microcodeMode: $microcodeMode, executionMode: $executionMode, l1Cache: $l1cache, type: $type, icsVersion: $icsVersion, threads: $threads)';
 }
 
+class RiverPortMap {
+  final String name;
+  final List<int> pins;
+  final List<String> devices;
+  final bool isOutput;
+
+  int get width => pins.length.bitLength;
+
+  const RiverPortMap(
+    this.name, {
+    this.pins = const [],
+    this.devices = const [],
+    this.isOutput = false,
+  });
+
+  @override
+  String toString() =>
+      'RiverPortMap($name, pins: $pins, devices: $devices, isOutput: $isOutput)';
+}
+
 /// A River SoC
 abstract class RiverSoC {
   /// Devices on the SoC
@@ -205,6 +225,9 @@ abstract class RiverSoC {
 
   /// The clocks for the SoC
   List<ClockDomain> get clocks;
+
+  /// Physical pinout of the SoC
+  List<RiverPortMap> get ports;
 
   const RiverSoC();
 
@@ -226,5 +249,5 @@ abstract class RiverSoC {
 
   @override
   String toString() =>
-      'RiverSoC(devices: $devices, clients: $clients, cores: $cores, fabric: $fabric, clocks: $clocks)';
+      'RiverSoC(devices: $devices, clients: $clients, cores: $cores, fabric: $fabric, clocks: $clocks, ports: $ports)';
 }

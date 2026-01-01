@@ -8,4 +8,6 @@ export 'src/core/int.dart';
 export 'src/core/mmu.dart';
 export 'src/core/pipeline.dart';
 export 'src/core.dart';
+export 'src/dev.dart';
 export 'src/memory/port.dart';
+export 'src/soc.dart';

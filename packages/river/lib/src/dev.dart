@@ -3,6 +3,17 @@ import 'clock.dart';
 import 'mem.dart';
 import 'river_base.dart';
 
+class DevicePort {
+  final String name;
+  final int width;
+  final bool isOutput;
+
+  const DevicePort(this.name, this.width, {this.isOutput = false});
+
+  @override
+  String toString() => 'DevicePort($name, $width, isOutput: $isOutput)';
+}
+
 class DeviceField {
   final String name;
   final int width;
@@ -97,6 +108,7 @@ class Device {
   final String compatible;
   final BusAddressRange? range;
   final List<int> interrupts;
+  final List<DevicePort> ports;
   final DeviceAccessor? accessor;
   final BusClientPort? clientPort;
   final ClockConfig? clock;
@@ -106,6 +118,7 @@ class Device {
     required this.compatible,
     this.range,
     this.interrupts = const [],
+    this.ports = const [],
     this.accessor,
     this.clientPort,
     this.clock,
@@ -154,5 +167,5 @@ class Device {
   @override
   String toString() =>
       'Device(name: \"$name\", compatible: \"$compatible\", range: $range,'
-      ' interrupts: $interrupts, accessor: $accessor, clientPort: $clientPort, clock: $clock)';
+      ' interrupts: $interrupts, ports: $ports, accessor: $accessor, clientPort: $clientPort, clock: $clock)';
 }

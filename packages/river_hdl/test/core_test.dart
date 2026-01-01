@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:rohd/rohd.dart';
+import 'package:rohd_bridge/rohd_bridge.dart';
 import 'package:rohd_hcl/rohd_hcl.dart';
 import 'package:riscv/riscv.dart';
 import 'package:river/river.dart';
@@ -20,13 +21,29 @@ void coreTest(
 }) async {
   final clk = SimpleClockGenerator(20).clk;
   final reset = Logic();
-  final enable = Logic();
 
-  final memRead = DataPortInterface(config.mxlen.size, config.mxlen.size);
-  final memWrite = DataPortInterface(config.mxlen.size, config.mxlen.size);
+  final addrWidth = config.mmu.blocks[0].size.bitLength;
+
+  final memRead = DataPortInterface(config.mxlen.size, addrWidth);
+  final memWrite = DataPortInterface(config.mxlen.size, addrWidth);
+
+  final mmioRead = MmioReadInterface(config.mxlen.size, addrWidth);
+  final mmioWrite = MmioWriteInterface(config.mxlen.size, addrWidth);
+
+  memRead.en <= mmioRead.en;
+  memRead.addr <= mmioRead.addr;
+  mmioRead.data <= memRead.data;
+  mmioRead.done <= memRead.done;
+  mmioRead.valid <= memRead.valid;
+
+  memWrite.en <= mmioWrite.en;
+  memWrite.addr <= mmioWrite.addr;
+  memWrite.data <= mmioWrite.data;
+  mmioWrite.done <= memWrite.done;
+  mmioWrite.valid <= memWrite.valid;
 
   final storage = SparseMemoryStorage(
-    addrWidth: config.mxlen.size,
+    addrWidth: addrWidth,
     dataWidth: config.mxlen.size,
     alignAddress: (addr) => addr,
     onInvalidRead: (addr, dataWidth) =>
@@ -42,27 +59,36 @@ void coreTest(
     storage: storage,
   );
 
-  final core = RiverCoreHDL(
-    config,
-    clk,
-    reset,
-    enable,
-    devices: {
-      MemoryBlock(
-        0,
-        0xFFFF,
-        DeviceAccessor('/mem', {}, type: DeviceAccessorType.memory),
-      ): (
-        memRead,
-        memWrite,
-      ),
-    },
-  );
+  final core = RiverCoreIP(config);
+
+  mmioRead.en <=
+      (core.interface('mmioRead0').interface as MmioReadInterface).en;
+  mmioRead.addr <=
+      (core.interface('mmioRead0').interface as MmioReadInterface).addr;
+  (core.interface('mmioRead0').interface as MmioReadInterface).data <=
+      mmioRead.data;
+  (core.interface('mmioRead0').interface as MmioReadInterface).done <=
+      mmioRead.done;
+  (core.interface('mmioRead0').interface as MmioReadInterface).valid <=
+      mmioRead.valid;
+
+  mmioWrite.en <=
+      (core.interface('mmioWrite0').interface as MmioWriteInterface).en;
+  mmioWrite.addr <=
+      (core.interface('mmioWrite0').interface as MmioWriteInterface).addr;
+  mmioWrite.data <=
+      (core.interface('mmioWrite0').interface as MmioWriteInterface).data;
+  (core.interface('mmioWrite0').interface as MmioWriteInterface).done <=
+      mmioWrite.done;
+  (core.interface('mmioWrite0').interface as MmioWriteInterface).valid <=
+      mmioWrite.valid;
+
+  core.input('clk').srcConnection! <= clk;
+  core.input('reset').srcConnection! <= reset;
 
   await core.build();
 
   reset.inject(1);
-  enable.inject(0);
 
   Simulator.registerAction(20, () {
     reset.put(0);
@@ -75,8 +101,6 @@ void coreTest(
     }
 
     storage.loadMemString(memString);
-
-    enable.put(1);
   });
 
   //Simulator.setMaxSimTime(1200000);

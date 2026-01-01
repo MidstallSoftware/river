@@ -125,6 +125,9 @@ class StreamV1SoC extends RiverSoC {
     ),
   ];
 
+  @override
+  List<RiverPortMap> get ports => [];
+
   List<MemoryBlock> get mmap =>
       devices.map((dev) => dev.mmap).nonNulls.toList();
 

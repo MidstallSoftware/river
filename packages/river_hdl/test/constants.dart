@@ -5,18 +5,44 @@ import 'package:test/test.dart';
 
 const kCpuConfigs = <String, RiverCore>{
   'RC1.n': const RiverCoreV1.nano(
-    mmu: Mmu(mxlen: Mxlen.mxlen_32, blocks: []),
+    mmu: Mmu(
+      mxlen: Mxlen.mxlen_32,
+      blocks: [
+        MemoryBlock(
+          0,
+          (1 << 32) - 1,
+          DeviceAccessor('/mem', {}, type: DeviceAccessorType.memory),
+        ),
+      ],
+    ),
     interrupts: [],
     clock: ClockConfig(name: 'test', baseFreqHz: 10000),
   ),
   'RC1.mi': const RiverCoreV1.micro(
-    mmu: Mmu(mxlen: Mxlen.mxlen_32, blocks: []),
+    mmu: Mmu(
+      mxlen: Mxlen.mxlen_32,
+      blocks: [
+        MemoryBlock(
+          0,
+          (1 << 32) - 1,
+          DeviceAccessor('/mem', {}, type: DeviceAccessorType.memory),
+        ),
+      ],
+    ),
     interrupts: [],
     clock: ClockConfig(name: 'test', baseFreqHz: 10000),
   ),
-  // FIXME: this breaks tests in core_tests.dart after adding the MMU */
   'RC1.s': const RiverCoreV1.small(
-    mmu: Mmu(mxlen: Mxlen.mxlen_64, blocks: []),
+    mmu: Mmu(
+      mxlen: Mxlen.mxlen_64,
+      blocks: [
+        MemoryBlock(
+          0,
+          0xFFFFFFFFFFFF,
+          DeviceAccessor('/mem', {}, type: DeviceAccessorType.memory),
+        ),
+      ],
+    ),
     interrupts: [],
     clock: ClockConfig(name: 'test', baseFreqHz: 10000),
   ),
