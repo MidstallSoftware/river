@@ -122,7 +122,7 @@
 
                 dartEntryPoints = {
                   "bin/river-emulator" = "packages/river_emulator/bin/river_emulator.dart";
-                  # TODO: add HDL
+                  "bin/river-hdlgen" = "packages/river_hdl/bin/river_hdlgen.dart";
                 };
 
                 preBuild = ''
@@ -137,6 +137,19 @@
                 packageRoot = "packages/river_emulator";
 
                 dartEntryPoints."bin/river-emulator" = "packages/river_emulator/bin/river_emulator.dart";
+
+                preBuild = ''
+                  mkdir -p bin
+                '';
+              };
+              hdl = buildDartApplication {
+                pname = "river-hdl";
+                inherit version pubspecLock gitHashes;
+
+                src = ./.;
+                packageRoot = "packages/river_hdl";
+
+                dartEntryPoints."bin/river-hdlgen" = "packages/river_hdl/bin/river_hdlgen.dart";
 
                 preBuild = ''
                   mkdir -p bin
