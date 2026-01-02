@@ -10,6 +10,7 @@ environment:
 # Add regular dependencies here.
 dependencies:
   args: ^2.7.0
+  logging: ^1.3.0
   path: ^1.9.1
   riscv: ^1.0.0
   river: ^1.0.0

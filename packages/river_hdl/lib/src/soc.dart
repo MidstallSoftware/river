@@ -4,11 +4,16 @@ import 'package:rohd_bridge/rohd_bridge.dart';
 
 import 'core.dart';
 import 'dev.dart';
+import 'devices.dart';
 
 class RiverSoCIP extends BridgeModule {
   final RiverSoC config;
 
-  RiverSoCIP(this.config) : super('RiverSoC') {
+  RiverSoCIP(
+    this.config, {
+    Map<String, Map<String, String>> deviceOptions = const {},
+    Map<String, DeviceModuleFactory> deviceFactory = kDeviceModuleFactory,
+  }) : super('RiverSoC') {
     createPort('reset', PortDirection.input);
 
     final reset = port('reset');
@@ -33,7 +38,15 @@ class RiverSoCIP extends BridgeModule {
       final index = entry.$1;
       final devConfig = entry.$2;
 
-      final dev = addSubModule(DeviceModule(mxlen, devConfig, devConfig.name));
+      final dev = addSubModule(
+        deviceFactory.containsKey(devConfig.compatible)
+            ? deviceFactory[devConfig.compatible]!(
+                mxlen,
+                devConfig,
+                deviceOptions[devConfig.name] ?? {},
+              )
+            : DeviceModule(mxlen, devConfig),
+      );
       devices.add(dev);
 
       connectPorts(reset, dev.port('reset'));
@@ -41,6 +54,17 @@ class RiverSoCIP extends BridgeModule {
       if (devConfig.clock != null) {
         final clk = port('clk_${devConfig.clock!.name}');
         connectPorts(clk, dev.port('clk'));
+      }
+
+      for (final p in devConfig.ports) {
+        final host = config.ports.firstWhere(
+          (h) => h.devices[devConfig.name] == p.name,
+        );
+
+        if (p.isOutput)
+          connectPorts(dev.port(p.name), port(host.name));
+        else
+          connectPorts(port(host.name), dev.port(p.name));
       }
     }
 

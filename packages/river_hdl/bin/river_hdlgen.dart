@@ -1,6 +1,7 @@
 import 'dart:io' show Platform, File;
 
 import 'package:args/args.dart';
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 import 'package:river/river.dart';
 import 'package:river_hdl/river_hdl.dart';
@@ -25,9 +26,21 @@ Future<void> main(List<String> arguments) async {
     allowed: RiverPlatformChoice.values.map((v) => v.name).toList(),
   );
 
+  parser.addMultiOption(
+    'device-option',
+    help: 'Adds an option when configuring a device',
+    splitCommas: false,
+  );
+
   parser.addOption(
     'output',
     help: 'Sets the output path to generate the SystemVerilog to',
+  );
+
+  parser.addOption(
+    'log',
+    help: 'Sets the log level',
+    allowed: Level.LEVELS.map((v) => v.name.toLowerCase()).toList(),
   );
 
   parser.addFlag('help', help: 'Prints the usage');
@@ -40,6 +53,17 @@ Future<void> main(List<String> arguments) async {
     print('Options:');
     print(parser.usage);
     return;
+  }
+
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+
+  if (args.option('log') != null) {
+    Logger.root.level = Level.LEVELS.firstWhere(
+      (v) => v.name.toLowerCase() == args.option('log'),
+    );
+    Logger.root.finest('Logging set to ${Logger.root.level}');
   }
 
   RiverPlatformChoice? platformChoice;
@@ -97,7 +121,53 @@ Future<void> main(List<String> arguments) async {
       }) ??
       (throw 'Invalid platform configuration');
 
-  final ip = RiverSoCIP(socConfig);
+  Logger.root.finest('River SoC configured: $socConfig');
 
-  await ip.buildAndGenerateRTL(outputPath: args.option('output') ?? 'output');
+  final ip = RiverSoCIP(
+    socConfig,
+    deviceOptions: Map.fromEntries(
+      args
+          .multiOption('device-option')
+          .map((option) {
+            final i = option.indexOf('.');
+            assert(i > 0);
+            return option.substring(0, i);
+          })
+          .map(
+            (key) => MapEntry(
+              key,
+              Map.fromEntries(
+                args
+                    .multiOption('device-option')
+                    .where((option) {
+                      final i = option.indexOf('.');
+                      assert(i > 0);
+                      return option.substring(0, i) == key;
+                    })
+                    .map((option) {
+                      final i = option.indexOf('.');
+                      assert(i > 0);
+
+                      final entry = option.substring(i + 1);
+
+                      final x = entry.indexOf('=');
+                      assert(x > 0);
+
+                      return MapEntry(
+                        entry.substring(0, x),
+                        entry.substring(x + 1),
+                      );
+                    }),
+              ),
+            ),
+          ),
+    ),
+  );
+
+  Logger.root.finest('River SoC module created: $ip');
+
+  await ip.buildAndGenerateRTL(
+    logger: Logger.root,
+    outputPath: args.option('output') ?? 'output',
+  );
 }

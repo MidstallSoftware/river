@@ -126,7 +126,10 @@ class StreamV1SoC extends RiverSoC {
   ];
 
   @override
-  List<RiverPortMap> get ports => [];
+  List<RiverPortMap> get ports => [
+    const RiverPortMap('uart_rx', [4], {'uart0': 'rx'}),
+    const RiverPortMap('uart_tx', [6], {'uart0': 'tx'}, isOutput: true),
+  ];
 
   List<MemoryBlock> get mmap =>
       devices.map((dev) => dev.mmap).nonNulls.toList();

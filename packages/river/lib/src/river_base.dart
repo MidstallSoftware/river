@@ -192,15 +192,15 @@ class RiverCore {
 class RiverPortMap {
   final String name;
   final List<int> pins;
-  final List<String> devices;
+  final Map<String, String> devices;
   final bool isOutput;
 
   int get width => pins.length.bitLength;
 
   const RiverPortMap(
-    this.name, {
-    this.pins = const [],
-    this.devices = const [],
+    this.name,
+    this.pins,
+    this.devices, {
     this.isOutput = false,
   });
 

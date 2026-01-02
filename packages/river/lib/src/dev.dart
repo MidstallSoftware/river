@@ -113,6 +113,10 @@ class Device {
   final BusClientPort? clientPort;
   final ClockConfig? clock;
 
+  String get module => (runtimeType.toString() == 'Device')
+      ? compatible.replaceAll(',', '_')
+      : runtimeType.toString();
+
   const Device({
     required this.name,
     required this.compatible,
@@ -133,6 +137,7 @@ class Device {
     Map<int, DeviceField>? fields,
     DeviceAccessorType type = DeviceAccessorType.memory,
     ClockConfig? clock,
+    List<DevicePort> ports = const [],
   }) {
     path ??= '/$name';
     final accessor = fields != null
@@ -154,6 +159,7 @@ class Device {
       accessor: accessor,
       clientPort: clientPort,
       clock: clock,
+      ports: ports,
     );
   }
 
