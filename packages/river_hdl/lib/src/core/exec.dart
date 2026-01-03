@@ -55,7 +55,7 @@ class ExecutionUnit extends Module {
     instrIndex = addInput(
       'instrIndex',
       instrIndex,
-      width: microcode.map.length.bitLength,
+      width: microcode.opIndexWidth,
     );
 
     instrTypeMap = Map.fromEntries(
@@ -156,17 +156,6 @@ class ExecutionUnit extends Module {
     addOutput('interruptHold');
 
     final opIndices = microcode.opIndices;
-
-    final mopMap = Map.fromEntries(
-      microcode.indices.entries.map(
-        (entry) => MapEntry(
-          entry.key,
-          microcode.map[entry.key]!.microcode
-              .map((mop) => opIndices[mop.runtimeType.toString()]!)
-              .toList(),
-        ),
-      ),
-    );
 
     final maxLen = microcode.microOpSequences.values
         .map((s) => s.ops.length * 2)
@@ -386,8 +375,8 @@ class ExecutionUnit extends Module {
             then: [
               Case(
                 instrIndex,
-                microcode.indices.entries.map((entry) {
-                  final op = microcode.map[entry.key]!;
+                microcode.execLookup.entries.map((entry) {
+                  final op = entry.value;
                   final steps = <CaseItem>[];
 
                   for (final mop in op.indexedMicrocode.values) {
@@ -841,27 +830,24 @@ class ExecutionUnit extends Module {
                     }
                   }
 
-                  return CaseItem(
-                    Const(entry.value + 1, width: instrIndex.width),
-                    [
-                      Case(mopStep, [
-                        CaseItem(Const(0, width: maxLen.bitLength), [
-                          alu < 0,
-                          fence < 0,
-                          rs1 < fields['rs1']!.zeroExtend(mxlen.size),
-                          rs2 < fields['rs2']!.zeroExtend(mxlen.size),
-                          rd < fields['rd']!.zeroExtend(mxlen.size),
-                          imm < fields['imm']!.zeroExtend(mxlen.size),
-                          mopStep < 1,
-                        ]),
-                        ...steps,
-                        CaseItem(
-                          Const(steps.length + 1, width: maxLen.bitLength),
-                          [done < 1],
-                        ),
+                  return CaseItem(Const(entry.key, width: instrIndex.width), [
+                    Case(mopStep, [
+                      CaseItem(Const(0, width: maxLen.bitLength), [
+                        alu < 0,
+                        fence < 0,
+                        rs1 < fields['rs1']!.zeroExtend(mxlen.size),
+                        rs2 < fields['rs2']!.zeroExtend(mxlen.size),
+                        rd < fields['rd']!.zeroExtend(mxlen.size),
+                        imm < fields['imm']!.zeroExtend(mxlen.size),
+                        mopStep < 1,
                       ]),
-                    ],
-                  );
+                      ...steps,
+                      CaseItem(
+                        Const(steps.length + 1, width: maxLen.bitLength),
+                        [done < 1],
+                      ),
+                    ]),
+                  ]);
                 }).toList(),
               ),
             ],

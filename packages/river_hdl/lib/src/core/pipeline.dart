@@ -37,7 +37,9 @@ class RiverPipeline extends Module {
     DataPortInterface memWrite,
     DataPortInterface rs1Read,
     DataPortInterface rs2Read,
-    DataPortInterface rdWrite, {
+    DataPortInterface rdWrite,
+    DataPortInterface? microcodeDecodeRead, {
+    bool useMixedDecoders = false,
     bool hasSupervisor = false,
     bool hasUser = false,
     bool hasCompressed = false,
@@ -130,6 +132,17 @@ class RiverPipeline extends Module {
         uniquify: (og) => 'rdWrite_$og',
       );
 
+    if (microcodeDecodeRead != null) {
+      microcodeDecodeRead = microcodeDecodeRead!.clone()
+        ..connectIO(
+          this,
+          microcodeDecodeRead!,
+          outputTags: {DataPortGroup.control},
+          inputTags: {DataPortGroup.data, DataPortGroup.integrity},
+          uniquify: (og) => 'microcodeRead_$og',
+        );
+    }
+
     if (mideleg != null)
       mideleg = addInput('mideleg', mideleg, width: mxlen.size);
     if (medeleg != null)
@@ -157,18 +170,77 @@ class RiverPipeline extends Module {
       hasCompressed: hasCompressed,
     );
 
-    final decoder = InstructionDecoder(
-      clk,
-      reset,
-      fetcher.done & fetcher.valid,
-      fetcher.result,
-      microcode: microcode,
-      mxlen: mxlen,
-      staticInstructions: staticInstructions,
-    );
+    final decoder0 = microcodeDecodeRead != null
+        ? DynamicInstructionDecoder(
+            clk,
+            reset,
+            fetcher.done & fetcher.valid,
+            fetcher.result,
+            microcodeDecodeRead!,
+            microcode: microcode,
+            mxlen: mxlen,
+            staticInstructions: staticInstructions,
+          )
+        : StaticInstructionDecoder(
+            clk,
+            reset,
+            fetcher.done & fetcher.valid,
+            fetcher.result,
+            microcode: microcode,
+            mxlen: mxlen,
+            staticInstructions: staticInstructions,
+          );
+
+    final decoder1 = (useMixedDecoders && microcodeDecodeRead != null)
+        ? StaticInstructionDecoder(
+            clk,
+            reset,
+            fetcher.done & fetcher.valid,
+            fetcher.result,
+            microcode: microcode,
+            mxlen: mxlen,
+            staticInstructions: staticInstructions,
+          )
+        : null;
+
+    final decodeIndex = decoder1 != null
+        ? mux(decoder0.done & decoder0.valid, decoder0.index, decoder1!.index)
+        : decoder0.index;
+    final decodeInstrTypeMap = decoder1 != null
+        ? decoder0.instrTypeMap.map(
+            (name, value) => MapEntry(
+              name,
+              mux(
+                decoder0.done & decoder0.valid,
+                value,
+                decoder1!.instrTypeMap[name]!,
+              ),
+            ),
+          )
+        : decoder0.instrTypeMap;
+
+    final decodeFields = decoder1 != null
+        ? decoder0.fields.map(
+            (name, value) => MapEntry(
+              name,
+              mux(
+                decoder0.done & decoder0.valid,
+                value,
+                decoder1!.fields[name]!,
+              ),
+            ),
+          )
+        : decoder0.fields;
+
+    final decodeDone = decoder1 != null
+        ? (decoder0.done | decoder1!.done)
+        : decoder0.done;
+    final decodeValid = decoder1 != null
+        ? (decoder0.valid | decoder1!.valid)
+        : decoder0.valid;
 
     final readyExecution =
-        (fetcher.valid & fetcher.done & decoder.valid & decoder.done).named(
+        (fetcher.valid & fetcher.done & decodeValid & decodeDone).named(
           'readyExecution',
         );
 
@@ -179,9 +251,9 @@ class RiverPipeline extends Module {
       currentSp,
       currentPc,
       currentMode,
-      decoder.index,
-      decoder.instrTypeMap,
-      decoder.fields,
+      decodeIndex,
+      decodeInstrTypeMap,
+      decodeFields,
       csrRead,
       csrWrite,
       memExecRead,
@@ -215,8 +287,8 @@ class RiverPipeline extends Module {
           fence < 0,
         ],
         orElse: [
-          done < fetcher.done & decoder.done & exec.done,
-          valid < fetcher.valid & decoder.valid,
+          done < fetcher.done & decodeDone & exec.done,
+          valid < fetcher.valid & decodeValid,
           nextSp < exec.nextSp,
           nextPc < exec.nextPc,
           nextMode < exec.nextMode,

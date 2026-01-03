@@ -245,6 +245,23 @@ class RiverCoreIP extends BridgeModule {
       // TODO: drive pagingMode, pageTableAddress, mxr, and sum from CSRs
     }
 
+    final microcodeRead = DataPortInterface(
+      config.microcode.patternWidth,
+      config.microcode.map.length.bitLength,
+    );
+
+    if (config.microcodeMode.onDecoder != MicrocodePipelineMode.none) {
+      RegisterFile(
+        clk,
+        reset,
+        [],
+        [microcodeRead],
+        numEntries: config.microcode.map.length,
+        resetValue: config.microcode.encodedPatterns,
+        definitionName: 'RiverMicrocodeLookup',
+      );
+    }
+
     pipeline = RiverPipeline(
       clk,
       reset,
@@ -261,6 +278,11 @@ class RiverCoreIP extends BridgeModule {
       rs1Read,
       rs2Read,
       rdWrite,
+      config.microcodeMode.onDecoder != MicrocodePipelineMode.none
+          ? microcodeRead
+          : null,
+      useMixedDecoders:
+          config.microcodeMode.onDecoder == MicrocodePipelineMode.in_parallel,
       microcode: config.microcode,
       mxlen: config.mxlen,
       hasSupervisor: config.hasSupervisor,

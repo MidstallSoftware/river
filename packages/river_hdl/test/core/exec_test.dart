@@ -27,7 +27,7 @@ Future<void> execTest(
 
   final input = Const(instr, width: 32);
 
-  final decoder = InstructionDecoder(
+  final decoder = StaticInstructionDecoder(
     clk,
     reset,
     enable,

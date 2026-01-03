@@ -22,16 +22,54 @@ enum RiverCoreType {
   final bool hasCsrs;
 }
 
+/// Defines how a segment of the pipeline should be integrated with microcode
+enum MicrocodePipelineMode {
+  /// Contains both microcoded and hard-coded
+  in_parallel,
+
+  /// Contains purely microcoded
+  standalone,
+
+  /// Contains purely hard-coded
+  none,
+}
+
 /// Defines the configuration mode of the microcode
 enum MicrocodeMode {
   /// No microcode engine
-  none,
+  none(),
 
   /// Partial microcode engine
-  partial,
+  parallelDecode(
+    onDecoder: MicrocodePipelineMode.in_parallel,
+    onExec: MicrocodePipelineMode.standalone,
+  ),
+
+  /// Partial microcode engine
+  parallelExec(
+    onDecoder: MicrocodePipelineMode.standalone,
+    onExec: MicrocodePipelineMode.in_parallel,
+  ),
+
+  /// Partial microcode engine
+  fullParallel(
+    onDecoder: MicrocodePipelineMode.in_parallel,
+    onExec: MicrocodePipelineMode.in_parallel,
+  ),
 
   /// Full microcode engine
-  full,
+  full(
+    onDecoder: MicrocodePipelineMode.standalone,
+    onExec: MicrocodePipelineMode.standalone,
+  );
+
+  const MicrocodeMode({
+    this.onDecoder = MicrocodePipelineMode.none,
+    this.onExec = MicrocodePipelineMode.none,
+  });
+
+  final MicrocodePipelineMode onDecoder;
+  final MicrocodePipelineMode onExec;
 }
 
 /// Method of performing the execution stage of the pipeline

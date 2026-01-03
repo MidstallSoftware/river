@@ -9,8 +9,13 @@ class BitRange {
   int get width => end - start + 1;
   int get mask => (1 << width) - 1;
 
+  BigInt get bigMask => (BigInt.one << width) - BigInt.one;
+
   int encode(int value) => (value & mask) << start;
   int decode(int value) => (value >> start) & mask;
+
+  BigInt bigEncode(BigInt value) => (value & bigMask) << start;
+  BigInt bigDecode(BigInt value) => (value >> start) & bigMask;
 
   @override
   String toString() => 'BitRange($start, $end)';
@@ -38,6 +43,23 @@ class BitStruct {
     return result;
   }
 
+  Map<String, int> bigDecode(BigInt value) {
+    final result = <String, int>{};
+    mapping.forEach((name, range) {
+      result[name] = range!.bigDecode(value).toInt();
+    });
+    return result;
+  }
+
+  BigInt bigEncode(Map<String, int> fields) {
+    BigInt result = BigInt.zero;
+    fields.forEach((name, val) {
+      final range = mapping[name];
+      result |= range!.bigEncode(BigInt.from(val));
+    });
+    return result;
+  }
+
   int getField(int value, String name) {
     final range = mapping[name];
     return range!.decode(value);
@@ -58,7 +80,16 @@ class BitStruct {
     return encode(map);
   }
 
-  int get width => mask.bitLength;
+  int get width {
+    var i = 0;
+    mapping.forEach((name, val) {
+      i = (val.end + 1) > i ? (val.end + 1) : i;
+    });
+    return i;
+  }
+
+  @override
+  String toString() => 'BitStruct($mapping)';
 }
 
 int signExtend(int value, int bits) {

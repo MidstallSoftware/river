@@ -1042,80 +1042,88 @@ class ReadCsrMicroOp extends MicroOp {
       BitStruct({'funct': MicroOp.functRange, 'source': const BitRange(5, 8)});
 }
 
-/// ---------------------------------------------------------------------------
-/// Operation / RiscVExtension / Microcode
-/// ---------------------------------------------------------------------------
-
 class OperationDecodePattern {
   final int mask;
   final int value;
   final int opIndex;
-  final Map<String, BitRange> nonZeroFields;
+  final int type;
+  final int nzfMask;
+  final int zfMask;
 
   const OperationDecodePattern(
     this.mask,
     this.value,
     this.opIndex,
-    this.nonZeroFields,
+    this.type,
+    this.nzfMask,
+    this.zfMask,
   );
 
-  OperationDecodePattern.map(Map<String, int> m, Map<String, BitRange> fields)
+  OperationDecodePattern.map(Map<String, int> m)
     : mask = m['mask']!,
       value = m['value']!,
       opIndex = m['opIndex']!,
-      nonZeroFields = Map.fromEntries(
-        m.entries.where((e) => e.key.startsWith('nzf')).map((e) {
-          final key = e.key.substring(3);
-          return MapEntry(key, fields[key]!);
-        }),
-      );
+      type = m['type']!,
+      nzfMask = m['nzfMask']!,
+      zfMask = m['zfMask']!;
 
-  OperationDecodePattern copyWith({int? opIndex}) => OperationDecodePattern(
-    mask,
-    value,
-    opIndex ?? this.opIndex,
-    nonZeroFields,
-  );
+  OperationDecodePattern copyWith({int? opIndex, int? type}) =>
+      OperationDecodePattern(
+        mask,
+        value,
+        opIndex ?? this.opIndex,
+        type ?? this.type,
+        nzfMask,
+        zfMask,
+      );
 
   Map<String, int> toMap() => {
     'mask': mask,
     'value': value,
     'opIndex': opIndex,
-    ...nonZeroFields.map((k, _) => MapEntry('nzf$k', 1)),
+    'type': type,
+    'nzfMask': nzfMask,
+    'zfMask': zfMask,
   };
 
-  int encode(int opIndexWidth, Map<int, String> fields) =>
-      struct(opIndexWidth, fields).encode(toMap());
+  BigInt encode(int opIndexWidth, int typeWidth, Map<int, String> fields) =>
+      struct(opIndexWidth, typeWidth, fields).bigEncode(toMap());
 
   @override
   String toString() =>
-      'OperationDecodePattern($mask, $value, $opIndex, $nonZeroFields)';
+      'OperationDecodePattern($mask, $value, $opIndex, $type, $nzfMask, $zfMask)';
 
-  static BitStruct struct(int opIndexWidth, Map<int, String> fields) {
+  static BitStruct struct(
+    int opIndexWidth,
+    int typeWidth,
+    Map<int, String> fields,
+  ) {
     final mapping = <String, BitRange>{};
     mapping['mask'] = BitRange(0, 31);
     mapping['value'] = BitRange(32, 63);
     mapping['opIndex'] = BitRange(64, 64 + opIndexWidth - 1);
-
-    var offset = 64 + opIndexWidth;
-
-    final sortedFields = fields.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    for (final field in sortedFields) {
-      mapping['nzf${field.key}'] = BitRange.single(offset++);
-    }
-
+    mapping['type'] = BitRange(
+      64 + opIndexWidth,
+      64 + opIndexWidth + typeWidth - 1,
+    );
+    mapping['nzfMask'] = BitRange(
+      64 + opIndexWidth + typeWidth,
+      64 + opIndexWidth + typeWidth + 31,
+    );
+    mapping['zfMask'] = BitRange(
+      64 + opIndexWidth + typeWidth + 32,
+      64 + opIndexWidth + typeWidth + 32 + 31,
+    );
     return BitStruct(mapping);
   }
 
   static OperationDecodePattern decode(
     int opIndexWidth,
+    int typeWidth,
     Map<int, String> indices,
-    Map<String, BitRange> ranges,
-    int value,
+    BigInt value,
   ) => OperationDecodePattern.map(
-    struct(opIndexWidth, indices).decode(value),
-    ranges,
+    struct(opIndexWidth, typeWidth, indices).bigDecode(value),
   );
 }
 
@@ -1162,7 +1170,7 @@ class Operation<T extends InstructionType> {
     return map;
   }
 
-  OperationDecodePattern decodePattern(int index) {
+  OperationDecodePattern decodePattern(int index, Map<String, int> typeMap) {
     var mask = 0;
     var value = 0;
 
@@ -1193,21 +1201,18 @@ class Operation<T extends InstructionType> {
 
     if (funct12 != null) bind(struct.mapping['funct12']!, funct12);
 
-    final nz = <String, BitRange>{};
+    int nzfMask = 0;
+
     for (final f in nonZeroFields) {
       if (!struct.mapping.containsKey(f)) {
         throw '$mnemonic instruction does not have field $f';
       }
 
       final r = struct.mapping[f]!;
-
-      final shiftedMask = r.mask << r.start;
-      mask |= shiftedMask;
-
-      final lsbBit = 1 << r.start;
-      value |= lsbBit;
-      nz[f] = r;
+      nzfMask |= (r.mask << r.start);
     }
+
+    int zfMask = 0;
 
     for (final f in zeroFields) {
       if (!struct.mapping.containsKey(f)) {
@@ -1215,10 +1220,19 @@ class Operation<T extends InstructionType> {
       }
 
       final r = struct.mapping[f]!;
-      mask |= (r.mask << r.start);
+      zfMask |= (r.mask << r.start);
     }
 
-    return OperationDecodePattern(mask, value, index, nz);
+    mask |= zfMask;
+
+    return OperationDecodePattern(
+      mask,
+      value,
+      index,
+      typeMap[Microcode.instrType(this)]!,
+      nzfMask,
+      zfMask,
+    );
   }
 
   bool _mapMatch(Map<String, int> map) {
@@ -1301,10 +1315,29 @@ class RiscVExtension {
     return null;
   }
 
-  Iterable<OperationDecodePattern> get decodePattern => operations
-      .asMap()
-      .entries
-      .map((entry) => entry.value.decodePattern(entry.key));
+  Map<String, BitStruct> get typeStructs {
+    Map<String, BitStruct> result = {};
+    for (final op in operations) {
+      final t = Microcode.instrType(op);
+      if (result.containsKey(t)) continue;
+      result[t] = op.struct;
+    }
+    return result;
+  }
+
+  Map<String, int> get typeMap => Map.fromEntries(
+    typeStructs.entries.indexed.map((e) => MapEntry(e.$2.key, e.$1)),
+  );
+
+  List<OperationDecodePattern> get decodePattern {
+    List<OperationDecodePattern> result = [];
+    var i = 0;
+    for (final op in operations) {
+      result.add(op.decodePattern(i, typeMap));
+      i += op.microcode.length + 1;
+    }
+    return result;
+  }
 
   Map<OperationDecodePattern, Operation<InstructionType>> get decodeMap {
     // NOTE: we probably should loop through the operations and patterns to ensure coherency.
@@ -1348,17 +1381,60 @@ class Microcode {
 
   int get patternWidth => OperationDecodePattern.struct(
     opIndices.length.bitLength,
+    typeStructs.length.bitLength,
     fieldIndices,
   ).width;
+
+  int get opIndexWidth => decodeLookup.keys.fold(0, (a, b) => a > b ? a : b);
 
   int opWidth(Mxlen mxlen) => map.values
       .map((op) => op.microcodeWidth(mxlen))
       .fold(0, (a, b) => a > b ? a : b);
 
-  List<int> get encodedPatterns {
-    List<int> result = [];
-    for (final pattern in map.keys) {
-      result.add(pattern.encode(opIndices.length.bitLength, fieldIndices));
+  Map<int, OperationDecodePattern> get decodeLookup {
+    Map<int, OperationDecodePattern> result = {};
+    var i = 0;
+    for (final e in map.entries) {
+      result[i] = e.key.copyWith(opIndex: i);
+      i += e.value.microcode.length + 1;
+    }
+    return result;
+  }
+
+  Map<int, Operation<InstructionType>> get execLookup {
+    Map<int, Operation<InstructionType>> result = {};
+    var i = 0;
+    for (final op in map.values) {
+      result[i] = op;
+      i += op.microcode.length + 1;
+    }
+    return result;
+  }
+
+  Map<String, BitStruct> get typeStructs {
+    Map<String, BitStruct> result = {};
+    for (final op in map.values) {
+      final t = instrType(op);
+      if (result.containsKey(t)) continue;
+      result[t] = op.struct;
+    }
+    return result;
+  }
+
+  Map<String, int> get typeMap => Map.fromEntries(
+    typeStructs.entries.indexed.map((e) => MapEntry(e.$2.key, e.$1)),
+  );
+
+  List<BigInt> get encodedPatterns {
+    List<BigInt> result = [];
+    for (final pattern in decodeLookup.values) {
+      result.add(
+        pattern.encode(
+          opIndices.length.bitLength,
+          typeMap.length.bitLength,
+          fieldIndices,
+        ),
+      );
     }
     return result;
   }
@@ -1480,14 +1556,10 @@ class Microcode {
 
   Operation<InstructionType>? lookup(int instr) {
     for (final entry in map.entries) {
-      final decoded = entry.value.struct.decode(instr);
-
-      for (final field in entry.key.nonZeroFields.keys) {
-        decoded[field] = 1;
-      }
-
-      final temp = entry.value.struct.encode(decoded);
-      if ((temp & entry.key.mask) == entry.key.value) {
+      final nzfMatch =
+          entry.key.nzfMask == 0 || (instr & entry.key.nzfMask) != 0;
+      final zfMatch = entry.key.zfMask == 0 || (instr & entry.key.zfMask) == 0;
+      if ((instr & entry.key.mask) == entry.key.value && nzfMatch && zfMatch) {
         return entry.value;
       }
     }
@@ -1521,11 +1593,13 @@ class Microcode {
     List<RiscVExtension> extensions,
   ) {
     final list = <OperationDecodePattern>[];
+    var i = 0;
     for (final ext in extensions) {
       final patterns = ext.decodePattern;
 
-      for (final pattern in patterns) {
-        list.add(pattern.copyWith(opIndex: list.length));
+      for (final e in patterns.indexed) {
+        list.add(e.$2.copyWith(opIndex: i));
+        i += ext.operations[e.$1].microcode.length + 1;
       }
     }
     return list;
@@ -1541,5 +1615,10 @@ class Microcode {
     final operations = buildOperations(extensions);
     // NOTE: we probably should loop through the operations and patterns to ensure coherency.
     return Map.fromIterables(patterns, operations);
+  }
+
+  static String instrType<T extends InstructionType>(Operation<T> i) {
+    final name = i.runtimeType.toString();
+    return name.substring(10, name.length - 1);
   }
 }
