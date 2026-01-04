@@ -119,7 +119,11 @@ class RiscVCsrFile extends Module {
     addOutput('mideleg', width: mxlen.size);
     addOutput('medeleg', width: mxlen.size);
     addOutput('mtvec', width: mxlen.size);
-    addOutput('stvec', width: mxlen.size);
+
+    if (hasSupervisor) {
+      addOutput('stvec', width: mxlen.size);
+      addOutput('satp', width: mxlen.size);
+    }
 
     void _checkFits(String n, int v) {
       final max = (mxlen.size >= 63) ? null : (1 << mxlen.size);
@@ -197,9 +201,14 @@ class RiscVCsrFile extends Module {
         _csrTop.getBackdoorPortsByAddr(0, CsrAddress.medeleg.address).rdData!;
     mtvec <=
         _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mtvec.address).rdData!;
-    if (hasSupervisor)
+
+    if (hasSupervisor) {
       stvec! <=
           _csrTop.getBackdoorPortsByAddr(0, CsrAddress.stvec.address).rdData!;
+
+      satp! <=
+          _csrTop.getBackdoorPortsByAddr(0, CsrAddress.satp.address).rdData!;
+    }
 
     if (externalPending != null) {
       final mip = _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mip.address);
@@ -568,17 +577,17 @@ class RiscVCsrFile extends Module {
     _fdRead.addr <= rdAddr12;
     _fdRead.en <= csrRead.en & rdLegal;
     csrRead.data <= _fdRead.data;
-    csrRead.done <= _fdRead.done | csrRead.en;
-    csrRead.valid <= _fdRead.valid & rdLegal;
+    csrRead.done <= _fdRead.done & csrRead.en;
+    csrRead.valid <= _fdRead.valid & csrRead.en & rdLegal;
 
     _fdWrite.addr <= wrAddr12;
 
     final maskedWriteData = _maskWriteData(wrAddr12, csrWrite.data);
     _fdWrite.data <= maskedWriteData;
 
-    _fdWrite.en <= csrWrite.en;
-    csrWrite.done <= _fdWrite.done;
-    csrWrite.valid <= _fdWrite.valid & wrLegal;
+    _fdWrite.en <= csrWrite.en & wrLegal;
+    csrWrite.done <= _fdWrite.done & csrWrite.en;
+    csrWrite.valid <= _fdWrite.valid & csrWrite.en & wrLegal;
   }
 
   void _bindBackdoorForCounters() {
@@ -635,6 +644,12 @@ class RiscVCsrFile extends Module {
     return _csrTop.getBackdoorPortsByAddr(0, address.toInt()).rdData?.value;
   }
 
+  CsrBackdoorInterface getBackdoor(LogicValue address) {
+    assert(address.width == 12);
+
+    return _csrTop.getBackdoorPortsByAddr(0, address.toInt());
+  }
+
   Logic get mvendorid =>
       _csrTop.getBackdoorPortsByAddr(0, CsrAddress.mvendorid.address).rdData!;
   Logic get marchid =>
@@ -668,6 +683,5 @@ class RiscVCsrFile extends Module {
       _csrTop.getBackdoorPortsByAddr(0, CsrAddress.scause.address).rdData!;
   Logic get stval =>
       _csrTop.getBackdoorPortsByAddr(0, CsrAddress.stval.address).rdData!;
-  Logic get satp =>
-      _csrTop.getBackdoorPortsByAddr(0, CsrAddress.satp.address).rdData!;
+  Logic? get satp => hasSupervisor ? output('satp') : null;
 }

@@ -38,8 +38,10 @@ class RiverPipeline extends Module {
     DataPortInterface rs1Read,
     DataPortInterface rs2Read,
     DataPortInterface rdWrite,
-    DataPortInterface? microcodeDecodeRead, {
+    DataPortInterface? microcodeDecodeRead,
+    DataPortInterface? microcodeExecRead, {
     bool useMixedDecoders = false,
+    bool useMixedExecution = false,
     bool hasSupervisor = false,
     bool hasUser = false,
     bool hasCompressed = false,
@@ -139,7 +141,18 @@ class RiverPipeline extends Module {
           microcodeDecodeRead!,
           outputTags: {DataPortGroup.control},
           inputTags: {DataPortGroup.data, DataPortGroup.integrity},
-          uniquify: (og) => 'microcodeRead_$og',
+          uniquify: (og) => 'microcodeDecodeRead_$og',
+        );
+    }
+
+    if (microcodeExecRead != null) {
+      microcodeExecRead = microcodeExecRead!.clone()
+        ..connectIO(
+          this,
+          microcodeExecRead!,
+          outputTags: {DataPortGroup.control},
+          inputTags: {DataPortGroup.data, DataPortGroup.integrity},
+          uniquify: (og) => 'microcodeExecRead_$og',
         );
     }
 
@@ -244,37 +257,128 @@ class RiverPipeline extends Module {
           'readyExecution',
         );
 
-    final exec = ExecutionUnit(
-      clk,
-      reset,
-      readyExecution,
-      currentSp,
-      currentPc,
-      currentMode,
-      decodeIndex,
-      decodeInstrTypeMap,
-      decodeFields,
-      csrRead,
-      csrWrite,
-      memExecRead,
-      memWrite,
-      rs1Read,
-      rs2Read,
-      rdWrite,
-      hasSupervisor: hasSupervisor,
-      hasUser: hasUser,
-      microcode: microcode,
-      mxlen: mxlen,
-      mideleg: mideleg,
-      medeleg: medeleg,
-      mtvec: mtvec,
-      stvec: stvec,
-      staticInstructions: staticInstructions,
-    );
+    final exec0 = microcodeExecRead != null
+        ? DynamicExecutionUnit(
+            clk,
+            reset,
+            readyExecution,
+            currentSp,
+            currentPc,
+            currentMode,
+            decodeIndex,
+            decodeInstrTypeMap,
+            decodeFields,
+            csrRead,
+            csrWrite,
+            memExecRead,
+            memWrite,
+            rs1Read,
+            rs2Read,
+            rdWrite,
+            microcodeExecRead,
+            hasSupervisor: hasSupervisor,
+            hasUser: hasUser,
+            microcode: microcode,
+            mxlen: mxlen,
+            mideleg: mideleg,
+            medeleg: medeleg,
+            mtvec: mtvec,
+            stvec: stvec,
+            staticInstructions: staticInstructions,
+          )
+        : StaticExecutionUnit(
+            clk,
+            reset,
+            readyExecution,
+            currentSp,
+            currentPc,
+            currentMode,
+            decodeIndex,
+            decodeInstrTypeMap,
+            decodeFields,
+            csrRead,
+            csrWrite,
+            memExecRead,
+            memWrite,
+            rs1Read,
+            rs2Read,
+            rdWrite,
+            hasSupervisor: hasSupervisor,
+            hasUser: hasUser,
+            microcode: microcode,
+            mxlen: mxlen,
+            mideleg: mideleg,
+            medeleg: medeleg,
+            mtvec: mtvec,
+            stvec: stvec,
+            staticInstructions: staticInstructions,
+          );
+
+    final exec1 = (useMixedExecution && microcodeExecRead != null)
+        ? StaticExecutionUnit(
+            clk,
+            reset,
+            readyExecution,
+            currentSp,
+            currentPc,
+            currentMode,
+            decodeIndex,
+            decodeInstrTypeMap,
+            decodeFields,
+            csrRead,
+            csrWrite,
+            memExecRead,
+            memWrite,
+            rs1Read,
+            rs2Read,
+            rdWrite,
+            hasSupervisor: hasSupervisor,
+            hasUser: hasUser,
+            microcode: microcode,
+            mxlen: mxlen,
+            mideleg: mideleg,
+            medeleg: medeleg,
+            mtvec: mtvec,
+            stvec: stvec,
+            staticInstructions: staticInstructions,
+          )
+        : null;
+
+    final execDone = exec1 != null ? exec0.done | exec1.done : exec0.done;
+    final execValid = exec1 != null ? exec0.valid | exec1.valid : exec0.valid;
+
+    final execNextSp = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.nextSp, exec1.nextSp)
+        : exec0.nextSp;
+    final execNextPc = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.nextPc, exec1.nextPc)
+        : exec0.nextPc;
+    final execNextMode = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.nextMode, exec1.nextMode)
+        : exec0.nextMode;
+    final execTrap = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.trap, exec1.trap)
+        : exec0.trap;
+    final execTrapCause = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.trapCause, exec1.trapCause)
+        : exec0.trapCause;
+    final execTrapTval = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.trapTval, exec1.trapTval)
+        : exec0.trapTval;
+    final execFence = exec1 != null
+        ? mux(exec0.done & exec0.valid, exec0.fence, exec1.fence)
+        : exec0.fence;
+    final execInterruptHold = exec1 != null
+        ? mux(
+            exec0.done & exec0.valid,
+            exec0.interruptHold,
+            exec1.interruptHold,
+          )
+        : exec0.interruptHold;
 
     Sequential(clk, [
       If(
-        reset | ~exec.done,
+        reset | ~execDone,
         then: [
           done < 0,
           valid < 0,
@@ -287,16 +391,16 @@ class RiverPipeline extends Module {
           fence < 0,
         ],
         orElse: [
-          done < fetcher.done & decodeDone & exec.done,
-          valid < fetcher.valid & decodeValid,
-          nextSp < exec.nextSp,
-          nextPc < exec.nextPc,
-          nextMode < exec.nextMode,
-          trap < exec.trap,
-          trapCause < exec.trapCause,
-          trapTval < exec.trapTval,
-          fence < exec.fence,
-          interruptHold < exec.interruptHold,
+          done < fetcher.done & decodeDone & execDone,
+          valid < fetcher.valid & decodeValid & execValid,
+          nextSp < execNextSp,
+          nextPc < execNextPc,
+          nextMode < execNextMode,
+          trap < execTrap,
+          trapCause < execTrapCause,
+          trapTval < execTrapTval,
+          fence < execFence,
+          interruptHold < execInterruptHold,
         ],
       ),
     ]);
